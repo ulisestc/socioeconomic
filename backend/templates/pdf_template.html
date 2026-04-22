@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; }
+        .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 20px; }
+        .section { margin-bottom: 20px; }
+        .label { font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Estudio Socioeconómico</h1>
+    </div>
+
+    <div class="section">
+        <p><span class="label">Folio:</span> {{ application.id }}</p>
+        <p><span class="label">Solicitante:</span> {{ application.applicant.username }} ({{ application.applicant.email }})</p>
+        <p><span class="label">Estatus:</span> {{ application.status }}</p>
+        <p><span class="label">Fecha de Creación:</span> {{ application.created_at }}</p>
+    </div>
+
+    <div class="section">
+        <h3>Respuestas del Formulario:</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pregunta</th>
+                    <th>Respuesta</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for response in application.responses.all %}
+                <tr>
+                    <td>{{ response.question_key }}</td>
+                    <td>{{ response.answer }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>Observaciones y Verificación:</h3>
+        <p>{{ application.verification_notes }}</p>
+    </div>
+</body>
+</html>
