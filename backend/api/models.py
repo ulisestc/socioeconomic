@@ -8,6 +8,11 @@ class User(AbstractUser):
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='APPLICANT')
     is_privacy_notice_accepted = models.BooleanField(default=False)
+    privacy_acceptance_ip = models.GenericIPAddressField(null=True, blank=True)
+    privacy_acceptance_timestamp = models.DateTimeField(null=True, blank=True)
+    temp_password = models.CharField(max_length=128, blank=True, null=True)
+
+
 
 class FormTemplate(models.Model):
     name = models.CharField(max_length=255)
@@ -32,3 +37,9 @@ class Response(models.Model):
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='responses')
     question_key = models.CharField(max_length=100)
     answer = models.JSONField()
+
+class Attachment(models.Model):
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='attachments')
+    question_key = models.CharField(max_length=100)
+    file = models.ImageField(upload_to='evidences/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)

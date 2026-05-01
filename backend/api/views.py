@@ -9,10 +9,11 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework_simplejwt.views import TokenObtainPairView
 from weasyprint import HTML
 
-from .models import User, FormTemplate, Application, Response
+from django.utils import timezone
+from .models import User, FormTemplate, Application, Response, Attachment
 from .serializers import (
     UserSerializer, FormTemplateSerializer, ApplicationSerializer, 
-    CreateApplicantSerializer, ResponseSerializer
+    CreateApplicantSerializer, ResponseSerializer, AttachmentSerializer
 )
 
 class IsConsultant(permissions.BasePermission):
@@ -28,6 +29,45 @@ class FormTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = FormTemplateSerializer
     permission_classes = [IsConsultant]
 
+    @action(detail=False, methods=['post'])
+    def import_xls(self, request):
+        import xlrd
+        file = request.FILES.get('file')
+        if not file:
+            return DRFResponse({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            workbook = xlrd.open_workbook(file_contents=file.read())
+            structure = []
+            sheet = workbook.sheet_by_index(0)
+            
+            # Mapeo dinámico basado en las coordenadas reales del XLS proporcionado
+            questions_s1 = [
+                {"key": "nombre", "label": str(sheet.cell_value(8, 0)).strip() or "Nombre", "type": "text"},
+                {"key": "domicilio", "label": str(sheet.cell_value(8, 4)).strip() or "Domicilio", "type": "text"},
+                {"key": "colonia", "label": str(sheet.cell_value(11, 0)).strip() or "Colonia", "type": "text"},
+                {"key": "cp", "label": str(sheet.cell_value(11, 4)).strip() or "CP", "type": "text"},
+                {"key": "municipio", "label": str(sheet.cell_value(11, 6)).strip() or "Municipio", "type": "text"},
+                {"key": "estado", "label": str(sheet.cell_value(11, 9)).strip() or "Estado", "type": "text"},
+            ]
+            structure.append({"section": "Datos Personales", "questions": questions_s1})
+            
+            questions_esc = [
+                {"key": "primaria", "label": str(sheet.cell_value(31, 0)).strip() or "Primaria", "type": "text"},
+                {"key": "secundaria", "label": str(sheet.cell_value(34, 0)).strip() or "Secundaria", "type": "text"},
+                {"key": "prepa", "label": str(sheet.cell_value(37, 0)).strip() or "Prepa", "type": "text"},
+                {"key": "lic", "label": str(sheet.cell_value(44, 0)).strip() or "Licenciatura", "type": "text"},
+            ]
+            structure.append({"section": "Trayectoria Escolar", "questions": questions_esc})
+
+            # Respond with structure, do NOT save yet
+            return DRFResponse({
+                "name": f"Importado: {file.name}",
+                "structure": structure
+            })
+        except Exception as e:
+            return DRFResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     
@@ -37,28 +77,86 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return Application.objects.all()
         return Application.objects.filter(applicant=user)
 
+    def _send_styled_email(self, subject, to_email, context):
+        html_message = render_to_string('email_template.html', context)
+        send_mail(
+            subject,
+            '',
+            settings.DEFAULT_FROM_EMAIL,
+            [to_email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+
     @action(detail=False, methods=['get'])
     def me(self, request):
         serializer = UserSerializer(request.user, context={'request': request})
+        return DRFResponse(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsConsultant])
+    def applicants(self, request):
+        applicants = User.objects.filter(role='APPLICANT')
+        serializer = UserSerializer(applicants, many=True)
         return DRFResponse(serializer.data)
 
     @action(detail=False, methods=['post'], permission_classes=[IsConsultant])
     def create_applicant(self, request):
         serializer = CreateApplicantSerializer(data=request.data)
         if serializer.is_valid():
+            from django.utils.crypto import get_random_string
+            password = get_random_string(12)
             user = serializer.save()
+            user.set_password(password)
+            user.temp_password = password # Guardar temporalmente para el primer envío
+            user.save()
             
-            # Send Email
-            password = request.data.get('password')
-            send_mail(
-                'Tus credenciales de Estudio Socioeconómico',
-                f'Hola {user.username},\n\nSe ha creado tu cuenta. Tus credenciales son:\nUsuario: {user.username}\nPassword: {password}\n\nPor favor inicia sesión para completar tu estudio.',
-                settings.DEFAULT_FROM_EMAIL,
-                [user.email],
-                fail_silently=False,
-            )
+            # NO enviar correo todavía (hasta la asignación)
             return DRFResponse(UserSerializer(user).data, status=status.HTTP_201_CREATED)
         return DRFResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch', 'delete'], permission_classes=[IsConsultant])
+    def manage_applicant(self, request, pk=None):
+        try:
+            applicant = User.objects.get(pk=pk, role='APPLICANT')
+        except User.DoesNotExist:
+            return DRFResponse({'error': 'Applicant not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'DELETE':
+            applicant.delete()
+            return DRFResponse(status=status.HTTP_204_NO_CONTENT)
+        
+        serializer = UserSerializer(applicant, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return DRFResponse(serializer.data)
+        return DRFResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def reset_password(self, request):
+        email = request.data.get('email')
+        try:
+            user = User.objects.get(email=email)
+            from django.utils.crypto import get_random_string
+            new_password = get_random_string(10)
+            user.set_password(new_password)
+            user.save()
+
+            self._send_styled_email(
+                'Recuperación de credenciales - SES',
+                user.email,
+                {
+                    'title': 'Recuperación de Credenciales',
+                    'name': user.first_name,
+                    'body_text': 'Has solicitado recuperar tus credenciales de acceso al sistema. Aquí tienes tus nuevos datos temporales:',
+                    'info_items': [('Usuario', user.username), ('Nueva Contraseña', new_password)],
+                    'button_text': 'Ir al Login',
+                    'button_url': 'http://localhost:4200/login'
+                }
+            )
+            return DRFResponse({'status': 'Credentials recovery email sent'})
+        except User.DoesNotExist:
+            return DRFResponse({'status': 'If the email exists, a reset link has been sent'})
+
 
     @action(detail=True, methods=['post'], permission_classes=[IsConsultant])
     def assign_form(self, request, pk=None):
@@ -71,15 +169,39 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             form_template=form_template,
             status='PENDING'
         )
+
+        # Enviar correo diferido
+        if applicant.temp_password:
+            subject = 'Tus credenciales y nuevo Estudio Socioeconómico'
+            context = {
+                'title': 'Bienvenido al Sistema de Estudios Socioeconómicos',
+                'name': f"{applicant.first_name} {applicant.last_name}",
+                'body_text': 'Se ha creado tu cuenta y se te ha asignado un estudio para completar. Por favor, utiliza las siguientes credenciales para acceder:',
+                'info_items': [('Usuario', applicant.username), ('Password', applicant.temp_password)],
+                'button_url': 'http://localhost:4200/login'
+            }
+            applicant.temp_password = None # Se borra tras enviarlo por primera vez
+            applicant.save()
+        else:
+            subject = 'Nuevo Estudio Socioeconómico Asignado'
+            context = {
+                'title': 'Nuevo Estudio Asignado',
+                'name': f"{applicant.first_name} {applicant.last_name}",
+                'body_text': f'Se te ha asignado un nuevo estudio socioeconómico (Folio #{application.id}). Por favor inicia sesión con tus credenciales habituales para completarlo.',
+                'button_url': 'http://localhost:4200/login'
+            }
+
+        self._send_styled_email(subject, applicant.email, context)
         return DRFResponse(ApplicationSerializer(application).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsApplicant])
+    @action(detail=False, methods=['post'], permission_classes=[IsApplicant])
     def accept_privacy(self, request, pk=None):
-        application = self.get_object()
         user = request.user
         user.is_privacy_notice_accepted = True
+        user.privacy_acceptance_ip = request.META.get('REMOTE_ADDR')
+        user.privacy_acceptance_timestamp = timezone.now()
         user.save()
-        return DRFResponse({'status': 'privacy notice accepted'})
+        return DRFResponse({'status': 'privacy notice accepted', 'timestamp': user.privacy_acceptance_timestamp})
 
     @action(detail=True, methods=['post'], permission_classes=[IsApplicant])
     def submit_responses(self, request, pk=None):
@@ -88,16 +210,21 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return DRFResponse({'error': 'Must accept privacy notice first'}, status=status.HTTP_400_BAD_REQUEST)
         
         responses_data = request.data.get('responses', [])
+        is_draft = request.data.get('is_draft', False)
+
         for resp in responses_data:
-            Response.objects.create(
+            Response.objects.update_or_create(
                 application=application,
                 question_key=resp.get('key'),
-                answer=resp.get('value')
+                defaults={'answer': resp.get('value')}
             )
         
-        application.status = 'FILLED'
-        application.save()
-        return DRFResponse({'status': 'form submitted'})
+        if not is_draft:
+            application.status = 'FILLED'
+            application.save()
+            return DRFResponse({'status': 'form submitted'})
+        
+        return DRFResponse({'status': 'progress saved'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsConsultant])
     def approve(self, request, pk=None):
@@ -107,12 +234,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.save()
         
         # Notificar por correo
-        send_mail(
+        self._send_styled_email(
             '¡Tu Estudio Socioeconómico ha sido aprobado!',
-            f'Hola {application.applicant.username},\n\nNos complace informarte que tu estudio socioeconómico (Folio #{application.id}) ha sido verificado y aprobado con éxito.\n\nYa puedes consultar el estatus final en la plataforma.\n\nSaludos,\nEquipo de Consultoría',
-            settings.DEFAULT_FROM_EMAIL,
-            [application.applicant.email],
-            fail_silently=False,
+            application.applicant.email,
+            {
+                'title': 'Estudio Aprobado',
+                'name': application.applicant.username,
+                'body_text': f'Nos complace informarte que tu estudio socioeconómico (Folio #{application.id}) ha sido verificado y aprobado con éxito.',
+                'info_items': [('Folio', f'#{application.id}'), ('Estatus', 'APROBADO')],
+                'button_url': 'http://localhost:4200/applicant'
+            }
         )
         
         return DRFResponse(ApplicationSerializer(application).data)
@@ -120,10 +251,55 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], permission_classes=[IsConsultant])
     def export_pdf(self, request, pk=None):
         application = self.get_object()
-        html_string = render_to_string('pdf_template.html', {'application': application})
-        html = HTML(string=html_string)
+        
+        # Estructurar datos para el PDF agrupados por sección
+        structured_data = []
+        responses_dict = {r.question_key: r.answer for r in application.responses.all()}
+        attachments_dict = {a.question_key: request.build_absolute_uri(a.file.url) for a in application.attachments.all()}
+
+        # El structure es una lista de secciones: [{"section": "...", "questions": [...]}, ...]
+        for section in application.form_template.structure:
+            sec_data = {
+                'title': section.get('section', 'Sin Título'),
+                'items': []
+            }
+            for q in section.get('questions', []):
+                key = q.get('key')
+                sec_data['items'].append({
+                    'label': q.get('label'),
+                    'type': q.get('type'),
+                    'answer': responses_dict.get(key, 'N/A'),
+                    'image_url': attachments_dict.get(key, None)
+                })
+            structured_data.append(sec_data)
+
+        context = {
+            'application': application,
+            'structured_data': structured_data,
+            'today': timezone.now()
+        }
+        
+        html_string = render_to_string('pdf_template.html', context)
+        html = HTML(string=html_string, base_url=request.build_absolute_uri())
         pdf = html.write_pdf()
         
         response = HttpResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="estudio_{application.id}.pdf"'
         return response
+
+class AttachmentViewSet(viewsets.ModelViewSet):
+    queryset = Attachment.objects.all()
+    serializer_class = AttachmentSerializer
+
+    def create(self, request, *args, **kwargs):
+        file = request.FILES.get('file')
+        application_id = request.data.get('application')
+        question_key = request.data.get('question_key')
+        
+        application = Application.objects.get(pk=application_id)
+        attachment = Attachment.objects.create(
+            application=application,
+            question_key=question_key,
+            file=file
+        )
+        return DRFResponse(AttachmentSerializer(attachment).data, status=status.HTTP_201_CREATED)

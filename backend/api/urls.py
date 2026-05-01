@@ -4,11 +4,12 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import FormTemplateViewSet, ApplicationViewSet
+from .views import FormTemplateViewSet, ApplicationViewSet, AttachmentViewSet
 
 router = DefaultRouter()
 router.register(r'templates', FormTemplateViewSet)
 router.register(r'applications', ApplicationViewSet, basename='application')
+router.register(r'attachments', AttachmentViewSet)
 
 urlpatterns = [
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

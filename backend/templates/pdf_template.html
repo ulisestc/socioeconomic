@@ -1,50 +1,157 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
     <style>
-        body { font-family: sans-serif; }
-        .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 20px; }
-        .section { margin-bottom: 20px; }
-        .label { font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        @page {
+            margin: 2cm;
+            @bottom-right {
+                content: "Página " counter(page) " de " counter(pages);
+                font-size: 9pt;
+            }
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #1e293b;
+            line-height: 1.5;
+            font-size: 10pt;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #2563eb;
+            font-size: 20pt;
+        }
+        .meta-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .meta-item {
+            margin-bottom: 5px;
+        }
+        .label {
+            font-weight: bold;
+            color: #64748b;
+            text-transform: uppercase;
+            font-size: 8pt;
+            display: block;
+        }
+        .value {
+            font-size: 10pt;
+            font-weight: 600;
+        }
+        .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        .section-title {
+            background: #e2e8f0;
+            padding: 8px 12px;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #1e3a8a;
+            border-left: 5px solid #2563eb;
+            margin-bottom: 15px;
+        }
+        .question-item {
+            margin-bottom: 15px;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 10px;
+        }
+        .question-label {
+            font-weight: bold;
+            color: #334155;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .answer-text {
+            color: #0f172a;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        .evidence-img {
+            max-width: 100%;
+            max-height: 400px;
+            display: block;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #cbd5e1;
+        }
+        .footer-notes {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            font-style: italic;
+            color: #64748b;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Estudio Socioeconómico</h1>
+        <h1>Reporte de Estudio Socioeconómico</h1>
+        <p>Folio Digital: #{{ application.id }}</p>
     </div>
 
-    <div class="section">
-        <p><span class="label">Folio:</span> {{ application.id }}</p>
-        <p><span class="label">Solicitante:</span> {{ application.applicant.username }} ({{ application.applicant.email }})</p>
-        <p><span class="label">Estatus:</span> {{ application.status }}</p>
-        <p><span class="label">Fecha de Creación:</span> {{ application.created_at }}</p>
+    <div class="meta-info">
+        <div class="meta-item">
+            <span class="label">Solicitante</span>
+            <span class="value">{{ application.applicant.first_name }} {{ application.applicant.last_name }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">Email</span>
+            <span class="value">{{ application.applicant.email }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">Fecha de Solicitud</span>
+            <span class="value">{{ application.created_at|date:"d/m/Y H:i" }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">Estatus Final</span>
+            <span class="value">{{ application.status }}</span>
+        </div>
     </div>
 
+    {% for section in structured_data %}
     <div class="section">
-        <h3>Respuestas del Formulario:</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Pregunta</th>
-                    <th>Respuesta</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for response in application.responses.all %}
-                <tr>
-                    <td>{{ response.question_key }}</td>
-                    <td>{{ response.answer }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="section-title">{{ section.title }}</div>
+        {% for item in section.items %}
+        <div class="question-item">
+            <span class="question-label">{{ item.label }}</span>
+            <div class="answer-text">
+                {% if item.type == 'file' %}
+                    {% if item.image_url %}
+                        <img src="{{ item.image_url }}" class="evidence-img">
+                    {% else %}
+                        <span style="color: #94a3b8;">Sin imagen adjunta.</span>
+                    {% endif %}
+                {% else %}
+                    {{ item.answer|default:"N/A" }}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
     </div>
+    {% endfor %}
 
+    {% if application.verification_notes %}
     <div class="section">
-        <h3>Observaciones y Verificación:</h3>
-        <p>{{ application.verification_notes }}</p>
+        <div class="section-title">Observaciones de Consultoría</div>
+        <div class="answer-text">{{ application.verification_notes }}</div>
+    </div>
+    {% endif %}
+
+    <div class="footer-notes">
+        <p>Este documento es una representación digital del estudio socioeconómico realizado el {{ today|date:"d/m/Y" }}.</p>
     </div>
 </body>
 </html>

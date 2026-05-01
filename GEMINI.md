@@ -19,50 +19,52 @@ Eres un Desarrollador Full-Stack Senior Autónomo. Tu objetivo es escribir códi
 * **Roles de Usuario:**
   1. Admin Maestro: Acceso global.
   2. Consultor: Crea cuentas, asocia solicitantes a formularios, revisa y aprueba/rechaza presencialmente.
-  3. Solicitante: Rol temporal que recibe credenciales por correo, acepta privacidad y llena su estudio.# Proyecto: Sistema de Estudios Socioeconómicos (SES)
+  3. Solicitante: Rol temporal que recibe credenciales por correo, acepta privacidad y llena su estudio.
+
+# Proyecto: Sistema de Estudios Socioeconómicos (SES)
 
 ## Estado de la Sesión Actual
-Se ha implementado el MVP (Producto Mínimo Viable) completamente funcional y dockerizado. El sistema permite la gestión integral de estudios desde la creación de plantillas hasta la aprobación final y exportación a PDF.
+Se ha evolucionado el MVP con un motor dinámico de formularios, soporte multimedia y mejoras profundas de UX/Flujo. El sistema ya no depende de estructuras fijas y permite migrar formatos físicos (Excel) automáticamente.
 
 ### Logros de esta Sesión:
-- **Infraestructura:** Configuración de Docker (Django, Angular 21, MySQL, smtp4dev).
-- **Backend (Django REST Framework):**
-    - Modelo de usuario personalizado con roles (Consultor/Solicitante).
-    - Constructor de APIs para gestión de plantillas, aplicaciones y respuestas.
-    - Sistema de generación de PDF profesional con WeasyPrint.
-    - Notificaciones automáticas por correo para credenciales y aprobación.
-    - Registro completo en el Admin de Django con seguridad de campos privados.
-- **Frontend (Angular 21):**
-    - UX/UI moderna y responsiva con CSS puro.
-    - **Constructor Visual de Formularios:** Permite a usuarios no técnicos crear plantillas sin usar JSON.
-    - Panel de control para consultores con gestión de estados (Pendiente, Llenado, Aprobado).
-    - Flujo de solicitante con aceptación de aviso de privacidad y llenado dinámico.
-- **Seguridad:** Notas de verificación privadas (solo visibles para consultores mediante lógica de serialización).
+- **Importador de Excel (Dinámico):** Endpoint que lee archivos `.xls` reales, extrae etiquetas de celdas específicas y genera la estructura base para el constructor.
+- **Constructor de Formularios Pro:** Nueva vista independiente (`/builder`) que permite previsualizar importaciones, añadir secciones, y definir tipos de campo (Foto, Tel, Textarea, etc.).
+- **Gestión de Usuarios Automatizada:** 
+    - Generación automática de `username` (inicial + apellido + random).
+    - Eliminación de fricción: el consultor solo ingresa Nombre, Apellido y Email.
+    - Envío de correo diferido: las credenciales se envían SÓLO cuando se asigna el primer estudio.
+- **Soporte Multimedia:** Modelo `Attachment` vinculado a preguntas, almacenamiento en `media/` y limpieza automática con `django-cleanup`.
+- **Cumplimiento y Privacidad:**
+    - Auditoría completa (IP/Timestamp) de aceptación de aviso.
+    - Bloqueo de avance hasta lectura completa (scroll) y aceptación global.
+- **Mejoras de UX:**
+    - Recuperación de credenciales (Usuario + Pass temporal) vía email.
+    - Visibilidad de contraseña (ojo) en Login.
+    - Dashboard de solicitante con gestión de múltiples estudios (Pendientes vs Completados).
+    - Alertas contextuales cerca de botones de acción.
+    - Previsualización de respuestas y fotos directamente en la tabla del consultor.
 
 ---
 
 ## Roadmap / Pendientes Próximos:
 
-### 1. Tipos de Preguntas Enriquecidos
-- [ ] Implementar soporte para subida de **fotos** (evidencia).
-- [ ] Agregar validaciones para campos específicos: **teléfonos, direcciones, ocupaciones**.
-- [ ] *Nota:* Pendiente recibir formato oficial para mapear la estructura exacta.
+### 1. Mejoras de Validación y Tipado
+- [ ] Implementar validaciones de lado del servidor para campos específicos (Regex para teléfonos, longitud de campos).
+- [ ] Agregar soporte para tablas dinámicas (ej: Tabla de empleos previos) dentro del JSON de respuestas.
 
-### 2. Aviso de Privacidad y Cumplimiento
-- [ ] Funcionalidad para **abrir y leer** el Aviso de Privacidad completo antes de aceptar.
-- [ ] Registro de auditoría: Almacenar y mostrar la **IP** y el **Timestamp** exacto de la aceptación en el Admin de Django.
+### 2. PDF y Reportes
+- [ ] Refinar el `pdf_template.html` para que agrupe las respuestas por las nuevas Secciones definidas en el constructor.
+- [ ] Incluir las fotos de evidencia subidas dentro del PDF final.
 
-### 3. Gestión de Usuarios Optimizada
-- [ ] **Generador automático** de usuarios y contraseñas aleatorias para entrevistados.
-- [ ] Ampliar perfiles de entrevistados con campos obligatorios de **Nombres y Apellidos**.
-
-### 4. Mejora en la Revisión de Datos
-- [ ] Implementar vista previa de **respuestas del solicitante** directamente en el dashboard del consultor (sin necesidad de exportar a PDF para revisión previa).
+### 3. Seguridad Adicional
+- [ ] Implementar expiración de sesiones y refresco de tokens (JWT Refresh).
+- [ ] Agregar cifrado adicional para campos extremadamente sensibles si fuera necesario.
 
 ---
 
 ## Notas Técnicas
-- **Frontend:** Angular 21 (Standalone Components), Node 22.
-- **Backend:** Django 5.x, Python 3.11-slim-bookworm.
-- **DB:** MySQL 8.0.
-- **Mail:** smtp4dev capturando en puerto 25 (SMTP) y 5000 (Web UI).
+- **Frontend:** Angular 21 (Standalone), Node 22.
+- **Backend:** Django 5.x, Python 3.11-slim. Dependencias clave: `xlrd` (Excel), `django-cleanup` (Media), `weasyprint` (PDF).
+- **Auth:** Login por `username` (generado). El consultor accede a `/consultant`, el solicitante a `/applicant`.
+- **Rutas:** `/login`, `/consultant`, `/applicant`, `/builder`.
+- **Mail:** smtp4dev (Puerto 25/5000).

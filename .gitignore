@@ -295,3 +295,14 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/django,python,angular
+
+# Custom Socioeconomic Project Ignores
+**/media/
+backend/media/
+**/*.pdf
+**/*.xls
+**/*.xlsx
+/docs/*.pdf
+/docs/*.xls
+/docs/*.xlsx
+.env

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { tap } from 'rxjs/operators';
+import { tap, switchMap } from 'rxjs/operators';
 import { Observable, BehaviorSubject } from 'rxjs';
 
 @Injectable({
@@ -22,16 +22,13 @@ export class AuthService {
       tap((response: any) => {
         localStorage.setItem('access', response.access);
         localStorage.setItem('refresh', response.refresh);
-        // Decode JWT to get user role/info or fetch from another endpoint
-        // For MVP, we'll fetch user info separately if needed or just store role
-      })
+      }),
+      switchMap(() => this.getProfile()) // Obtener el perfil inmediatamente tras login
     );
   }
 
-  // Helper to fetch current user profile
   getProfile(): Observable<any> {
-    const headers = { 'Authorization': `Bearer ${localStorage.getItem('access')}` };
-    return this.http.get(`${this.apiUrl}/applications/me/`, { headers }).pipe(
+    return this.http.get(`${this.apiUrl}/applications/me/`).pipe(
       tap(user => {
         localStorage.setItem('user', JSON.stringify(user));
         this.userSubject.next(user);
@@ -42,10 +39,6 @@ export class AuthService {
   logout() {
     localStorage.clear();
     this.userSubject.next(null);
-  }
-
-  getToken() {
-    return localStorage.getItem('access');
   }
 
   get user$() {

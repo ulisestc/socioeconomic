@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #334155; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 20px auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .header { background-color: #2563eb; color: white; padding: 24px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .content { padding: 32px; background-color: #ffffff; }
+        .footer { background-color: #f8fafc; color: #64748b; padding: 24px; text-align: center; font-size: 12px; }
+        .button { display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }
+        .info-box { background-color: #f1f5f9; border-radius: 6px; padding: 16px; margin: 20px 0; border-left: 4px solid #2563eb; }
+        .info-box p { margin: 8px 0; }
+        .footer p { margin: 4px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SES - Sistema de Estudios Socioeconómicos</h1>
+        </div>
+        <div class="content">
+            <h2>{{ title }}</h2>
+            <p>Hola <strong>{{ name }}</strong>,</p>
+            <p>{{ body_text }}</p>
+            
+            {% if info_items %}
+            <div class="info-box">
+                {% for label, value in info_items %}
+                <p><strong>{{ label }}:</strong> {{ value }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if button_url %}
+            <a href="{{ button_url }}" class="button">{{ button_text|default:"Acceder al Sistema" }}</a>
+            {% endif %}
+
+            <p>Si tienes alguna duda, por favor contacta a tu consultor asignado.</p>
+            <p>Atentamente,<br><strong>Equipo de Consultoría</strong></p>
+        </div>
+        <div class="footer">
+            <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+            <p>&copy; 2026 Sistema de Estudios Socioeconómicos</p>
+        </div>
+    </div>
+</body>
+</html>
