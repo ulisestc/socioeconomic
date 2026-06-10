@@ -42,7 +42,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         request = self.context.get('request')
-        if request and request.user.role == 'APPLICANT':
+        # El solicitante solo ve las notas cuando su estudio fue rechazado (para saber qué corregir)
+        if request and request.user.role == 'APPLICANT' and instance.status != 'REJECTED':
             ret.pop('verification_notes', None)
         return ret
 

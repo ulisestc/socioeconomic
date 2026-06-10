@@ -18,6 +18,9 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
 
+# URL pública del frontend (para links en correos y CORS)
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:4200')
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -47,7 +50,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True # For MVP simplicity
+# CORS: orígenes permitidos desde el entorno (default: frontend local)
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=['http://localhost:4200'])
 
 ROOT_URLCONF = 'core.urls'
 

@@ -52,13 +52,14 @@ import { AuthService } from '../services/auth.service';
 
         <div class="grid">
           <div class="card list-card">
-            <h3>Pendientes por Llenar</h3>
-            <div *ngFor="let app of pendingApps" class="app-item" (click)="selectApp(app)">
+            <h3>Pendientes / Por corregir</h3>
+            <div *ngFor="let app of pendingApps" class="app-item" [class.rejected-item]="app.status === 'REJECTED'" (click)="selectApp(app)">
               <div class="app-info">
                 <strong>{{ app.form_template.name }}</strong>
-                <span>Asignado el: {{ app.created_at | date:'shortDate' }}</span>
+                <span *ngIf="app.status === 'PENDING'">Asignado el: {{ app.created_at | date:'shortDate' }}</span>
+                <span *ngIf="app.status === 'REJECTED'" class="badge rejected">Requiere correcciones</span>
               </div>
-              <div class="app-action">Llenar →</div>
+              <div class="app-action">{{ app.status === 'REJECTED' ? 'Corregir →' : 'Llenar →' }}</div>
             </div>
             <p *ngIf="pendingApps.length === 0" class="empty-msg">No tienes estudios pendientes.</p>
           </div>
@@ -78,12 +79,17 @@ import { AuthService } from '../services/auth.service';
       </div>
 
       <!-- 3. Rellenar Formulario Seleccionado -->
-      <div *ngIf="selectedApplication && selectedApplication.status === 'PENDING'" class="card form-card">
+      <div *ngIf="selectedApplication && (selectedApplication.status === 'PENDING' || selectedApplication.status === 'REJECTED')" class="card form-card">
         <header class="form-header">
           <button class="btn-back" (click)="selectedApplication = null">← Volver</button>
           <h1>{{ selectedApplication.form_template.name }}</h1>
           <p>Puedes guardar tu progreso y continuar más tarde.</p>
         </header>
+
+        <div *ngIf="selectedApplication.status === 'REJECTED'" class="reject-banner">
+          <strong>⚠️ El entrevistador solicitó correcciones:</strong>
+          <p>{{ selectedApplication.verification_notes || 'Revisa tu información y vuelve a enviarla.' }}</p>
+        </div>
 
         <form (submit)="submitForm(false)" class="dynamic-form">
           <div *ngFor="let section of selectedApplication.form_template.structure" class="form-section">
@@ -117,7 +123,7 @@ import { AuthService } from '../services/auth.service';
       </div>
 
       <!-- 4. Estatus de Formulario Seleccionado (Llenado/Aprobado) -->
-      <div *ngIf="selectedApplication && selectedApplication.status !== 'PENDING'" class="card status-card">
+      <div *ngIf="selectedApplication && (selectedApplication.status === 'FILLED' || selectedApplication.status === 'APPROVED')" class="card status-card">
         <button class="btn-back" (click)="selectedApplication = null">← Volver</button>
         <div class="icon-check" [style.color]="selectedApplication.status === 'APPROVED' ? 'var(--primary)' : 'var(--success)'">
           {{ selectedApplication.status === 'APPROVED' ? '🎓' : '✅' }}
@@ -172,7 +178,14 @@ import { AuthService } from '../services/auth.service';
     
     .status-card { text-align: center; }
     .icon-check { font-size: 4rem; margin-bottom: 1rem; line-height: 1; }
+    .badge { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: inline-block; }
+    .badge.filled { background: #dcfce7; color: #166534; }
+    .badge.approved { background: #dbeafe; color: #1e40af; }
+    .badge.rejected { background: #fee2e2; color: #991b1b; }
     .badge.big { font-size: 1rem; padding: 0.4rem 1.2rem; }
+    .reject-banner { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 1rem 1.25rem; border-radius: 8px; margin-bottom: 2rem; }
+    .reject-banner p { margin: 0.4rem 0 0; font-weight: 500; white-space: pre-wrap; }
+    .rejected-item { border-left: 4px solid var(--danger); }
     .status-steps { margin: 2.5rem 0; display: flex; justify-content: space-between; gap: 0.5rem; }
     .step { flex: 1; font-size: 0.7rem; padding: 0.6rem; background: #f1f5f9; border-radius: 4px; color: var(--text-light); font-weight: 600; }
     .step.complete { background: #dcfce7; color: #166534; }
@@ -213,8 +226,8 @@ export class ApplicantFormComponent implements OnInit {
 
   loadApplications() {
     this.api.getApplications().subscribe(apps => {
-      this.pendingApps = apps.filter((a:any) => a.status === 'PENDING');
-      this.completedApps = apps.filter((a:any) => a.status !== 'PENDING');
+      this.pendingApps = apps.filter((a:any) => a.status === 'PENDING' || a.status === 'REJECTED');
+      this.completedApps = apps.filter((a:any) => a.status === 'FILLED' || a.status === 'APPROVED');
     });
   }
 

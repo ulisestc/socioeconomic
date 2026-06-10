@@ -8,5 +8,4 @@ django-cors-headers
 weasyprint
 django-extensions
 cryptography
-xlrd
 django-cleanup

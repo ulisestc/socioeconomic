@@ -129,8 +129,10 @@
             <span class="question-label">{{ item.label }}</span>
             <div class="answer-text">
                 {% if item.type == 'file' %}
-                    {% if item.image_url %}
-                        <img src="{{ item.image_url }}" class="evidence-img">
+                    {% if item.image_urls %}
+                        {% for url in item.image_urls %}
+                            <img src="{{ url }}" class="evidence-img">
+                        {% endfor %}
                     {% else %}
                         <span style="color: #94a3b8;">Sin imagen adjunta.</span>
                     {% endif %}
@@ -147,6 +149,15 @@
     <div class="section">
         <div class="section-title">Observaciones de Consultoría</div>
         <div class="answer-text">{{ application.verification_notes }}</div>
+    </div>
+    {% endif %}
+
+    {% if corroboration_images %}
+    <div class="section">
+        <div class="section-title">Evidencia de Corroboración (Entrevistador)</div>
+        {% for url in corroboration_images %}
+        <img src="{{ url }}" class="evidence-img">
+        {% endfor %}
     </div>
     {% endif %}
 

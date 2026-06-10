@@ -87,9 +87,11 @@ import { Router } from '@angular/router';
                           <span class="badge" [ngClass]="app.status.toLowerCase()">{{ app.status }}</span>
                         </td>
                         <td class="text-right actions">
-                          <button class="btn-outline-mini" (click)="togglePreview(app.id)">👁️</button>
-                          <button *ngIf="app.status === 'FILLED'" class="btn-success-mini" (click)="showApproveForm(app.id)">✓</button>
-                          <button class="btn-outline-mini" (click)="exportPdf(app.id)">📄</button>
+                          <button class="btn-outline-mini" title="Ver detalle" (click)="togglePreview(app.id)">👁️</button>
+                          <button *ngIf="app.status === 'FILLED'" class="btn-success-mini" title="Aprobar" (click)="startReview(app.id, 'approve')">✓</button>
+                          <button *ngIf="app.status === 'FILLED'" class="btn-danger-mini" title="Rechazar / pedir correcciones" (click)="startReview(app.id, 'reject')">✗</button>
+                          <button class="btn-outline-mini" title="Previsualizar PDF" (click)="previewPdf(app.id)">🔍</button>
+                          <button class="btn-outline-mini" title="Descargar PDF" (click)="exportPdf(app.id)">📄</button>
                         </td>
                       </tr>
                       <!-- Inline Preview -->
@@ -103,7 +105,7 @@ import { Router } from '@angular/router';
                             
                             <div class="responses-grid">
                               <div *ngFor="let resp of app.responses" class="resp-item">
-                                <label>{{ resp.question_key }}</label>
+                                <label>{{ getLabel(app, resp.question_key) }}</label>
                                 <p>{{ resp.answer }}</p>
                               </div>
                             </div>
@@ -112,19 +114,29 @@ import { Router } from '@angular/router';
                               <label>Evidencia</label>
                               <div class="img-grid">
                                 <div *ngFor="let att of app.attachments" class="img-item">
-                                  <a [href]="'http://localhost:8000' + att.file" target="_blank">
-                                    <img [src]="'http://localhost:8000' + att.file">
+                                  <a [href]="att.file" target="_blank">
+                                    <img [src]="att.file">
                                   </a>
                                 </div>
                               </div>
                             </div>
-                            
-                            <div *ngIf="approvingId === app.id" class="approve-form card mt-1">
-                              <h4>Aprobar Estudio</h4>
-                              <textarea [(ngModel)]="verificationNotes" placeholder="Notas de verificación..."></textarea>
+
+                            <div class="corroboration-upload">
+                              <label class="btn-corroborate">
+                                📷 Subir foto de corroboración (visita)
+                                <input type="file" (change)="uploadCorroboration($event, app.id)" accept="image/*" style="display:none">
+                              </label>
+                              <span *ngIf="uploadingCorroboration === app.id" class="local-status">Subiendo...</span>
+                            </div>
+
+                            <div *ngIf="reviewingId === app.id" class="approve-form card mt-1">
+                              <h4>{{ reviewAction === 'approve' ? 'Aprobar Estudio' : 'Rechazar / Pedir correcciones' }}</h4>
+                              <textarea [(ngModel)]="verificationNotes" [placeholder]="reviewAction === 'approve' ? 'Notas de verificación...' : 'Indica qué debe corregir el solicitante...'"></textarea>
                               <div class="flex-end gap-1">
-                                <button class="outline" (click)="approvingId = null">Cancelar</button>
-                                <button class="primary" (click)="approve(app.id)">Finalizar</button>
+                                <button class="outline" (click)="reviewingId = null">Cancelar</button>
+                                <button [class.primary]="reviewAction === 'approve'" [class.btn-reject-confirm]="reviewAction === 'reject'" (click)="submitReview(app.id)">
+                                  {{ reviewAction === 'approve' ? 'Finalizar Aprobación' : 'Enviar Correcciones' }}
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -247,11 +259,17 @@ import { Router } from '@angular/router';
     .badge.pending { background: #fef9c3; color: #854d0e; }
     .badge.filled { background: #dcfce7; color: #166534; }
     .badge.approved { background: #dbeafe; color: #1e40af; }
+    .badge.rejected { background: #fee2e2; color: #991b1b; }
     
     .actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
     .btn-outline-mini { background: #f1f5f9; border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; }
     .btn-success-mini { background: var(--success); color: white; border: none; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; }
     .btn-danger-mini { background: #fee2e2; color: #ef4444; border: none; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; }
+    .corroboration-upload { margin-top: 1rem; display: flex; align-items: center; gap: 0.75rem; }
+    .btn-corroborate { display: inline-block; background: #eff6ff; color: var(--primary); border: 1px dashed var(--primary); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.8rem; }
+    .btn-reject-confirm { background: var(--danger); color: white; }
+    .local-status { font-size: 0.8rem; color: var(--text-light); }
+    .local-status.success { color: var(--success); font-weight: 600; }
     
     .preview-row { background: #f8fafc; }
     .preview-content { padding: 1.5rem; background: white; border: 1px solid var(--border); margin: 0.5rem 1.5rem 1.5rem; border-radius: 8px; }
@@ -287,8 +305,10 @@ export class ConsultantDashboardComponent implements OnInit {
   assignStatus = '';
   
   previewId: number | null = null;
-  approvingId: number | null = null;
+  reviewingId: number | null = null;
+  reviewAction: 'approve' | 'reject' = 'approve';
   verificationNotes = '';
+  uploadingCorroboration: number | null = null;
 
   constructor(private api: ApiService, private router: Router) {}
 
@@ -368,16 +388,53 @@ export class ConsultantDashboardComponent implements OnInit {
     this.previewId = this.previewId === id ? null : id;
   }
 
-  showApproveForm(id: number) {
+  startReview(id: number, action: 'approve' | 'reject') {
     this.previewId = id;
-    this.approvingId = id;
+    this.reviewingId = id;
+    this.reviewAction = action;
+    this.verificationNotes = '';
   }
 
-  approve(id: number) {
-    this.api.approveApplication(id, this.verificationNotes).subscribe(() => {
-      this.approvingId = null;
+  submitReview(id: number) {
+    const req = this.reviewAction === 'approve'
+      ? this.api.approveApplication(id, this.verificationNotes)
+      : this.api.rejectApplication(id, this.verificationNotes);
+    req.subscribe(() => {
+      this.reviewingId = null;
       this.verificationNotes = '';
       this.loadApplications();
+    });
+  }
+
+  uploadCorroboration(event: any, appId: number) {
+    const file = event.target.files[0];
+    if (!file) return;
+    this.uploadingCorroboration = appId;
+    this.api.uploadAttachment(appId, 'corroboracion_visita', file).subscribe({
+      next: () => {
+        this.uploadingCorroboration = null;
+        this.loadApplications();
+      },
+      error: () => this.uploadingCorroboration = null
+    });
+  }
+
+  getLabel(app: any, key: string): string {
+    const structure = app.form_template?.structure;
+    if (Array.isArray(structure)) {
+      for (const section of structure) {
+        for (const q of section.questions || []) {
+          if (q.key === key) return q.label;
+        }
+      }
+    }
+    return key;
+  }
+
+  previewPdf(id: number) {
+    this.api.exportPdf(id).subscribe(blob => {
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
     });
   }
 

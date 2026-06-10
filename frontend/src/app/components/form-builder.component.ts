@@ -16,10 +16,6 @@ import { Router } from '@angular/router';
           <h1>Constructor de Formularios</h1>
         </div>
         <div class="header-actions">
-          <label class="btn-import">
-            📂 Importar XLS
-            <input type="file" (change)="onFileSelected($event)" accept=".xls,.xlsx" style="display:none">
-          </label>
           <button class="primary" (click)="saveTemplate()" [disabled]="!templateName || sections.length === 0">
             💾 Guardar Plantilla
           </button>
@@ -68,8 +64,6 @@ import { Router } from '@angular/router';
     .builder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .btn-back { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-light); }
     .header-actions { display: flex; gap: 1rem; align-items: center; }
-    .btn-import { background: #f1f5f9; color: var(--text); padding: 0.6rem 1rem; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); font-weight: 600; font-size: 0.9rem; }
-    
     .settings-card { margin-bottom: 2rem; }
     .settings-card label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.85rem; color: var(--text-light); text-transform: uppercase; }
     .settings-card input { font-size: 1.1rem; font-weight: 600; border-color: var(--primary); }
@@ -129,20 +123,6 @@ export class FormBuilderComponent implements OnInit {
     this.sections[sIdx].questions.splice(qIdx, 1);
   }
 
-  onFileSelected(event: any) {
-    const file = event.target.files[0];
-    if (file) {
-      this.api.importXlsTemplate(file).subscribe({
-        next: (data) => {
-          this.templateName = data.name;
-          this.sections = data.structure;
-          this.showStatus('XLS pre-cargado. Revisa y ajusta antes de guardar.', 'success');
-        },
-        error: () => this.showStatus('Error al importar XLS.', 'error')
-      });
-    }
-  }
-
   saveTemplate() {
     // Generar claves únicas para cada pregunta basada en el label
     const processedSections = this.sections.map(sec => ({
@@ -172,6 +152,6 @@ export class FormBuilderComponent implements OnInit {
   }
 
   goBack() {
-    this.router.navigate(['/dashboard']);
+    this.router.navigate(['/consultant']);
   }
 }

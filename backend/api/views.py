@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 from django.conf import settings
 from django.core.mail import send_mail
 from django.http import HttpResponse
@@ -28,45 +29,6 @@ class FormTemplateViewSet(viewsets.ModelViewSet):
     queryset = FormTemplate.objects.all()
     serializer_class = FormTemplateSerializer
     permission_classes = [IsConsultant]
-
-    @action(detail=False, methods=['post'])
-    def import_xls(self, request):
-        import xlrd
-        file = request.FILES.get('file')
-        if not file:
-            return DRFResponse({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            workbook = xlrd.open_workbook(file_contents=file.read())
-            structure = []
-            sheet = workbook.sheet_by_index(0)
-            
-            # Mapeo dinámico basado en las coordenadas reales del XLS proporcionado
-            questions_s1 = [
-                {"key": "nombre", "label": str(sheet.cell_value(8, 0)).strip() or "Nombre", "type": "text"},
-                {"key": "domicilio", "label": str(sheet.cell_value(8, 4)).strip() or "Domicilio", "type": "text"},
-                {"key": "colonia", "label": str(sheet.cell_value(11, 0)).strip() or "Colonia", "type": "text"},
-                {"key": "cp", "label": str(sheet.cell_value(11, 4)).strip() or "CP", "type": "text"},
-                {"key": "municipio", "label": str(sheet.cell_value(11, 6)).strip() or "Municipio", "type": "text"},
-                {"key": "estado", "label": str(sheet.cell_value(11, 9)).strip() or "Estado", "type": "text"},
-            ]
-            structure.append({"section": "Datos Personales", "questions": questions_s1})
-            
-            questions_esc = [
-                {"key": "primaria", "label": str(sheet.cell_value(31, 0)).strip() or "Primaria", "type": "text"},
-                {"key": "secundaria", "label": str(sheet.cell_value(34, 0)).strip() or "Secundaria", "type": "text"},
-                {"key": "prepa", "label": str(sheet.cell_value(37, 0)).strip() or "Prepa", "type": "text"},
-                {"key": "lic", "label": str(sheet.cell_value(44, 0)).strip() or "Licenciatura", "type": "text"},
-            ]
-            structure.append({"section": "Trayectoria Escolar", "questions": questions_esc})
-
-            # Respond with structure, do NOT save yet
-            return DRFResponse({
-                "name": f"Importado: {file.name}",
-                "structure": structure
-            })
-        except Exception as e:
-            return DRFResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
@@ -150,7 +112,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     'body_text': 'Has solicitado recuperar tus credenciales de acceso al sistema. Aquí tienes tus nuevos datos temporales:',
                     'info_items': [('Usuario', user.username), ('Nueva Contraseña', new_password)],
                     'button_text': 'Ir al Login',
-                    'button_url': 'http://localhost:4200/login'
+                    'button_url': f'{settings.FRONTEND_URL}/login'
                 }
             )
             return DRFResponse({'status': 'Credentials recovery email sent'})
@@ -178,7 +140,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 'name': f"{applicant.first_name} {applicant.last_name}",
                 'body_text': 'Se ha creado tu cuenta y se te ha asignado un estudio para completar. Por favor, utiliza las siguientes credenciales para acceder:',
                 'info_items': [('Usuario', applicant.username), ('Password', applicant.temp_password)],
-                'button_url': 'http://localhost:4200/login'
+                'button_url': f'{settings.FRONTEND_URL}/login'
             }
             applicant.temp_password = None # Se borra tras enviarlo por primera vez
             applicant.save()
@@ -188,7 +150,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 'title': 'Nuevo Estudio Asignado',
                 'name': f"{applicant.first_name} {applicant.last_name}",
                 'body_text': f'Se te ha asignado un nuevo estudio socioeconómico (Folio #{application.id}). Por favor inicia sesión con tus credenciales habituales para completarlo.',
-                'button_url': 'http://localhost:4200/login'
+                'button_url': f'{settings.FRONTEND_URL}/login'
             }
 
         self._send_styled_email(subject, applicant.email, context)
@@ -242,22 +204,46 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 'name': application.applicant.username,
                 'body_text': f'Nos complace informarte que tu estudio socioeconómico (Folio #{application.id}) ha sido verificado y aprobado con éxito.',
                 'info_items': [('Folio', f'#{application.id}'), ('Estatus', 'APROBADO')],
-                'button_url': 'http://localhost:4200/applicant'
+                'button_url': f'{settings.FRONTEND_URL}/applicant'
             }
         )
         
         return DRFResponse(ApplicationSerializer(application).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsConsultant])
+    def reject(self, request, pk=None):
+        application = self.get_object()
+        application.status = 'REJECTED'
+        application.verification_notes = request.data.get('notes', '')
+        application.save()
+
+        # Notificar al solicitante que debe corregir
+        self._send_styled_email(
+            'Tu Estudio Socioeconómico requiere correcciones',
+            application.applicant.email,
+            {
+                'title': 'Estudio: Correcciones Requeridas',
+                'name': application.applicant.first_name,
+                'body_text': f'Tu estudio socioeconómico (Folio #{application.id}) fue revisado y requiere algunos ajustes. Por favor revisa los comentarios, corrige y vuelve a enviarlo.',
+                'info_items': [('Folio', f'#{application.id}'), ('Comentarios', application.verification_notes or 'Sin comentarios')],
+                'button_url': f'{settings.FRONTEND_URL}/applicant'
+            }
+        )
+        return DRFResponse(ApplicationSerializer(application, context={'request': request}).data)
 
     @action(detail=True, methods=['get'], permission_classes=[IsConsultant])
     def export_pdf(self, request, pk=None):
         application = self.get_object()
         
         # Estructurar datos para el PDF agrupados por sección
-        structured_data = []
         responses_dict = {r.question_key: r.answer for r in application.responses.all()}
-        attachments_dict = {a.question_key: request.build_absolute_uri(a.file.url) for a in application.attachments.all()}
+        attachments_by_key = defaultdict(list)
+        for a in application.attachments.all():
+            attachments_by_key[a.question_key].append(request.build_absolute_uri(a.file.url))
 
         # El structure es una lista de secciones: [{"section": "...", "questions": [...]}, ...]
+        structured_data = []
+        form_keys = set()
         for section in application.form_template.structure:
             sec_data = {
                 'title': section.get('section', 'Sin Título'),
@@ -265,17 +251,25 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             }
             for q in section.get('questions', []):
                 key = q.get('key')
+                form_keys.add(key)
                 sec_data['items'].append({
                     'label': q.get('label'),
                     'type': q.get('type'),
                     'answer': responses_dict.get(key, 'N/A'),
-                    'image_url': attachments_dict.get(key, None)
+                    'image_urls': attachments_by_key.get(key, [])
                 })
             structured_data.append(sec_data)
+
+        # Fotos subidas por el entrevistador al corroborar (claves fuera del formulario)
+        corroboration_images = []
+        for key, urls in attachments_by_key.items():
+            if key not in form_keys:
+                corroboration_images.extend(urls)
 
         context = {
             'application': application,
             'structured_data': structured_data,
+            'corroboration_images': corroboration_images,
             'today': timezone.now()
         }
         

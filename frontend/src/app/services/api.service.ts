@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
-  private apiUrl = 'http://localhost:8000/api';
+  private apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
@@ -25,12 +26,6 @@ export class ApiService {
 
   deleteTemplate(id: number): Observable<any> {
     return this.http.delete(`${this.apiUrl}/templates/${id}/`);
-  }
-
-  importXlsTemplate(file: File): Observable<any> {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post(`${this.apiUrl}/templates/import_xls/`, formData);
   }
 
   // Applications
@@ -68,6 +63,10 @@ export class ApiService {
 
   approveApplication(applicationId: number, notes: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/applications/${applicationId}/approve/`, { notes });
+  }
+
+  rejectApplication(applicationId: number, notes: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/applications/${applicationId}/reject/`, { notes });
   }
 
   resetPassword(email: string): Observable<any> {
