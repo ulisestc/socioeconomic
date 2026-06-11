@@ -101,16 +101,21 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             from django.utils.crypto import get_random_string
             new_password = get_random_string(10)
             user.set_password(new_password)
+            # Para solicitantes, la clave recuperada también es temporal: al entrar
+            # se les pedirá fijar su contraseña definitiva.
+            if user.role == 'APPLICANT':
+                user.must_change_credentials = True
             user.save()
 
             self._send_styled_email(
-                'Recuperación de credenciales - SES',
+                'Recuperación de credenciales - CAPDIR',
                 user.email,
                 {
                     'title': 'Recuperación de Credenciales',
                     'name': user.first_name,
-                    'body_text': 'Has solicitado recuperar tus credenciales de acceso al sistema. Aquí tienes tus nuevos datos temporales:',
-                    'info_items': [('Usuario', user.username), ('Nueva Contraseña', new_password)],
+                    'body_text': ('Has solicitado recuperar tu acceso. Estos datos son TEMPORALES: al iniciar '
+                                  'sesión deberás definir una nueva contraseña.'),
+                    'info_items': [('Usuario', user.username), ('Contraseña temporal', new_password)],
                     'button_text': 'Ir al Login',
                     'button_url': f'{settings.FRONTEND_URL}/login'
                 }
@@ -134,12 +139,20 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         # Enviar correo diferido
         if applicant.temp_password:
-            subject = 'Tus credenciales y nuevo Estudio Socioeconómico'
+            subject = 'Tus credenciales temporales y nuevo Estudio Socioeconómico'
             context = {
-                'title': 'Bienvenido al Sistema de Estudios Socioeconómicos',
+                'title': 'Bienvenido a CAPDIR — Estudios Socioeconómicos',
                 'name': f"{applicant.first_name} {applicant.last_name}",
-                'body_text': 'Se ha creado tu cuenta y se te ha asignado un estudio para completar. Por favor, utiliza las siguientes credenciales para acceder:',
-                'info_items': [('Usuario', applicant.username), ('Password', applicant.temp_password)],
+                'body_text': ('Se ha creado tu cuenta y se te ha asignado un estudio para completar. '
+                              'Las siguientes credenciales son TEMPORALES: en tu primer inicio de sesión el '
+                              'sistema te pedirá definir tu acceso definitivo (tu usuario pasará a ser tu correo '
+                              'electrónico y deberás elegir una contraseña nueva).'),
+                'info_items': [
+                    ('Usuario temporal', applicant.username),
+                    ('Contraseña temporal', applicant.temp_password),
+                    ('Tu usuario definitivo será', applicant.email),
+                ],
+                'button_text': 'Iniciar sesión y configurar mi acceso',
                 'button_url': f'{settings.FRONTEND_URL}/login'
             }
             applicant.temp_password = None # Se borra tras enviarlo por primera vez
@@ -164,6 +177,42 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         user.privacy_acceptance_timestamp = timezone.now()
         user.save()
         return DRFResponse({'status': 'privacy notice accepted', 'timestamp': user.privacy_acceptance_timestamp})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsApplicant])
+    def change_credentials(self, request):
+        """Multi-step de primer login: el solicitante fija su contraseña definitiva.
+        Su usuario pasa a ser su correo electrónico. El JWT vigente sigue siendo válido
+        (identifica por id), por lo que no se requiere volver a iniciar sesión."""
+        user = request.user
+        new_password = request.data.get('new_password', '')
+
+        if len(new_password) < 8:
+            return DRFResponse(
+                {'error': 'La contraseña debe tener al menos 8 caracteres.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        new_username = (user.email or '').strip()
+        if not new_username:
+            return DRFResponse(
+                {'error': 'No tienes un correo registrado para usar como usuario.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Garantizar unicidad del nuevo username (su correo) frente a otros usuarios
+        if User.objects.exclude(pk=user.pk).filter(username=new_username).exists():
+            return DRFResponse(
+                {'error': 'Ese correo ya está en uso como usuario.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.username = new_username
+        user.set_password(new_password)
+        user.must_change_credentials = False
+        user.temp_password = None
+        user.save()
+
+        return DRFResponse(UserSerializer(user, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsApplicant])
     def submit_responses(self, request, pk=None):

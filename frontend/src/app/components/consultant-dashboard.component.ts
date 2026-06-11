@@ -1,309 +1,268 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../services/api.service';
 import { Router } from '@angular/router';
+import {
+  LucideAngularModule, ClipboardList, Users, FileText, Plus, RefreshCw, Eye, Check, X,
+  Download, Search, Trash2, Pencil, Camera, Wrench, Send, UserPlus, FileSearch, Inbox
+} from 'lucide-angular';
+import { ApiService } from '../services/api.service';
+import { TubelightNavComponent, TubelightItem } from '../ui/tubelight-nav.component';
 
 @Component({
   selector: 'app-consultant-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule, TubelightNavComponent],
   template: `
-    <div class="container dashboard-container animate-in">
-      <header class="dashboard-header">
+    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 animate-in">
+      <!-- encabezado -->
+      <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1>Panel de Consultor</h1>
-          <p>Gestiona solicitantes y estudios socioeconómicos</p>
+          <h1 class="text-3xl font-extrabold tracking-tight text-foreground">Panel de Consultor</h1>
+          <p class="mt-1 text-sm text-muted-foreground">Gestiona solicitantes y estudios socioeconómicos.</p>
         </div>
-        <div class="header-actions">
-          <button class="primary" (click)="goToBuilder()">🛠️ Nuevo Formulario</button>
-          <button class="outline" (click)="logout()">Cerrar Sesión</button>
-        </div>
+        <button class="ses-btn-primary self-start sm:self-auto" (click)="goToBuilder()">
+          <lucide-icon [img]="WrenchIcon" [size]="16"></lucide-icon> Nuevo Formulario
+        </button>
       </header>
 
-      <!-- Tab Navigation -->
-      <nav class="tab-nav">
-        <button [class.active]="activeTab === 'studies'" (click)="activeTab = 'studies'">📊 Estudios</button>
-        <button [class.active]="activeTab === 'applicants'" (click)="activeTab = 'applicants'">👥 Solicitantes</button>
-        <button [class.active]="activeTab === 'templates'" (click)="activeTab = 'templates'">📋 Plantillas</button>
-      </nav>
+      <!-- tabs tubelight -->
+      <div class="mb-8 flex justify-center sm:justify-start">
+        <tubelight-nav [items]="tabs" [active]="activeTab" (activeChange)="activeTab = $event"></tubelight-nav>
+      </div>
 
-      <div class="tab-content mt-2">
-        
-        <!-- TAB 1: ESTUDIOS -->
-        <div *ngIf="activeTab === 'studies'" class="grid">
-          <aside class="sidebar">
-            <div class="card sidebar-section">
-              <h3>Asignar Nuevo Estudio</h3>
-              <div class="form-group">
-                <label>Seleccionar Solicitante</label>
-                <select [(ngModel)]="targetApplicantId">
-                  <option [value]="null">-- Buscar Solicitante --</option>
-                  <option *ngFor="let a of applicants" [value]="a.id">
-                    {{ a.first_name }} {{ a.last_name }}
-                  </option>
-                </select>
+      <!-- ===== ESTUDIOS ===== -->
+      <div *ngIf="activeTab === 'studies'" class="grid gap-6 lg:grid-cols-[320px_1fr]">
+        <aside class="ses-card h-fit p-6">
+          <h3 class="mb-4 text-sm font-bold uppercase tracking-wide text-primary">Asignar Nuevo Estudio</h3>
+          <label class="ses-label">Solicitante</label>
+          <select [(ngModel)]="targetApplicantId" class="ses-input mb-3">
+            <option [ngValue]="null">— Buscar solicitante —</option>
+            <option *ngFor="let a of applicants" [ngValue]="a.id">{{ a.first_name }} {{ a.last_name }}</option>
+          </select>
+          <label class="ses-label">Plantilla</label>
+          <select [(ngModel)]="selectedFormId" class="ses-input mb-4">
+            <option [ngValue]="null">— Seleccionar plantilla —</option>
+            <option *ngFor="let t of templates" [ngValue]="t.id">{{ t.name }}</option>
+          </select>
+          <button class="ses-btn-primary w-full" (click)="assignForm()"
+                  [disabled]="!targetApplicantId || !selectedFormId || loading">
+            <lucide-icon [img]="SendIcon" [size]="16"></lucide-icon> Asignar Estudio
+          </button>
+          <p *ngIf="assignStatus" class="mt-3 text-sm font-semibold text-[hsl(142_71%_30%)]">{{ assignStatus }}</p>
+        </aside>
 
-                <label>Seleccionar Plantilla</label>
-                <select [(ngModel)]="selectedFormId">
-                  <option [value]="null">-- Seleccionar Plantilla --</option>
-                  <option *ngFor="let t of templates" [value]="t.id">{{ t.name }}</option>
-                </select>
+        <main class="ses-card overflow-hidden">
+          <div class="flex items-center justify-between border-b border-border bg-muted/40 px-5 py-4">
+            <h3 class="font-semibold text-foreground">Estudios en Curso</h3>
+            <button class="ses-btn-ghost !px-2 !py-2" (click)="loadApplications()" title="Actualizar">
+              <lucide-icon [img]="RefreshIcon" [size]="16"></lucide-icon>
+            </button>
+          </div>
 
-                <button class="primary w-full mt-1" (click)="assignForm()" [disabled]="!targetApplicantId || !selectedFormId || loading">
-                  Asignar Estudio
-                </button>
-                <p *ngIf="assignStatus" class="local-status success">{{ assignStatus }}</p>
-              </div>
+          <!-- filtros -->
+          <div class="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex flex-wrap gap-1.5">
+              <button *ngFor="let f of filters" (click)="studyFilter = f.value"
+                      class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+                      [ngClass]="studyFilter === f.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'">
+                {{ f.label }}
+                <span class="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[0.6rem]"
+                      [ngClass]="studyFilter === f.value ? 'bg-white/25' : 'bg-foreground/10'">{{ countByStatus(f.value) }}</span>
+              </button>
             </div>
-          </aside>
-
-          <main class="main-content">
-            <div class="card list-card">
-              <div class="list-header">
-                <h3>Estudios en Curso</h3>
-                <button class="outline-mini" (click)="loadApplications()">🔄</button>
-              </div>
-              
-              <div class="table-responsive">
-                <table class="modern-table">
-                  <thead>
-                    <tr>
-                      <th>Solicitante</th>
-                      <th>Estado</th>
-                      <th class="text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <ng-container *ngFor="let app of applications">
-                      <tr>
-                        <td>
-                          <div class="user-info">
-                            <strong>{{ app.applicant.first_name }} {{ app.applicant.last_name }}</strong>
-                            <span>Folio #{{ app.id }} | {{ app.form_template.name }}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span class="badge" [ngClass]="app.status.toLowerCase()">{{ app.status }}</span>
-                        </td>
-                        <td class="text-right actions">
-                          <button class="btn-outline-mini" title="Ver detalle" (click)="togglePreview(app.id)">👁️</button>
-                          <button *ngIf="app.status === 'FILLED'" class="btn-success-mini" title="Aprobar" (click)="startReview(app.id, 'approve')">✓</button>
-                          <button *ngIf="app.status === 'FILLED'" class="btn-danger-mini" title="Rechazar / pedir correcciones" (click)="startReview(app.id, 'reject')">✗</button>
-                          <button class="btn-outline-mini" title="Previsualizar PDF" (click)="previewPdf(app.id)">🔍</button>
-                          <button class="btn-outline-mini" title="Descargar PDF" (click)="exportPdf(app.id)">📄</button>
-                        </td>
-                      </tr>
-                      <!-- Inline Preview -->
-                      <tr *ngIf="previewId === app.id" class="preview-row">
-                        <td colspan="3">
-                          <div class="preview-content">
-                            <header class="flex-between">
-                              <h4>Detalle #{{ app.id }} - {{ app.form_template.name }}</h4>
-                              <button class="btn-close" (click)="previewId = null">×</button>
-                            </header>
-                            
-                            <div class="responses-grid">
-                              <div *ngFor="let resp of app.responses" class="resp-item">
-                                <label>{{ getLabel(app, resp.question_key) }}</label>
-                                <p>{{ resp.answer }}</p>
-                              </div>
-                            </div>
-
-                            <div *ngIf="app.attachments?.length > 0" class="attachments-preview">
-                              <label>Evidencia</label>
-                              <div class="img-grid">
-                                <div *ngFor="let att of app.attachments" class="img-item">
-                                  <a [href]="att.file" target="_blank">
-                                    <img [src]="att.file">
-                                  </a>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div class="corroboration-upload">
-                              <label class="btn-corroborate">
-                                📷 Subir foto de corroboración (visita)
-                                <input type="file" (change)="uploadCorroboration($event, app.id)" accept="image/*" style="display:none">
-                              </label>
-                              <span *ngIf="uploadingCorroboration === app.id" class="local-status">Subiendo...</span>
-                            </div>
-
-                            <div *ngIf="reviewingId === app.id" class="approve-form card mt-1">
-                              <h4>{{ reviewAction === 'approve' ? 'Aprobar Estudio' : 'Rechazar / Pedir correcciones' }}</h4>
-                              <textarea [(ngModel)]="verificationNotes" [placeholder]="reviewAction === 'approve' ? 'Notas de verificación...' : 'Indica qué debe corregir el solicitante...'"></textarea>
-                              <div class="flex-end gap-1">
-                                <button class="outline" (click)="reviewingId = null">Cancelar</button>
-                                <button [class.primary]="reviewAction === 'approve'" [class.btn-reject-confirm]="reviewAction === 'reject'" (click)="submitReview(app.id)">
-                                  {{ reviewAction === 'approve' ? 'Finalizar Aprobación' : 'Enviar Correcciones' }}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </ng-container>
-                  </tbody>
-                </table>
-              </div>
+            <div class="relative w-full lg:w-64">
+              <lucide-icon [img]="SearchIcon" [size]="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"></lucide-icon>
+              <input [(ngModel)]="searchTerm" class="ses-input pl-9" placeholder="Buscar por solicitante...">
             </div>
-          </main>
-        </div>
+          </div>
 
-        <!-- TAB 2: SOLICITANTES -->
-        <div *ngIf="activeTab === 'applicants'" class="grid">
-          <aside class="sidebar">
-            <div class="card sidebar-section">
-              <h3>{{ editingApplicant ? 'Editar' : 'Registrar' }} Solicitante</h3>
-              <div class="form-group">
-                <input [(ngModel)]="newApplicant.first_name" placeholder="Nombres">
-                <input [(ngModel)]="newApplicant.last_name" placeholder="Apellidos">
-                <input [(ngModel)]="newApplicant.email" placeholder="Correo electrónico">
-                
-                <div class="flex-gap mt-1">
-                  <button class="primary w-full" (click)="saveApplicant()">
-                    {{ editingApplicant ? 'Guardar Cambios' : 'Registrar' }}
+          <!-- lista -->
+          <div class="divide-y divide-border">
+            <div *ngFor="let app of filteredApplications()" class="px-5 py-4">
+              <div class="flex flex-wrap items-center gap-3">
+                <div class="min-w-0 flex-1">
+                  <p class="font-semibold text-foreground">{{ app.applicant.first_name }} {{ app.applicant.last_name }}</p>
+                  <p class="text-xs text-muted-foreground">Folio #{{ app.id }} · {{ app.form_template.name }}</p>
+                </div>
+                <span class="ses-badge" [ngClass]="'ses-badge-' + app.status.toLowerCase()">{{ statusLabel(app.status) }}</span>
+                <div class="flex items-center gap-1.5">
+                  <button class="ses-btn-outline !px-2.5 !py-2" title="Ver detalle" (click)="togglePreview(app.id)">
+                    <lucide-icon [img]="EyeIcon" [size]="16"></lucide-icon>
                   </button>
-                  <button *ngIf="editingApplicant" class="outline" (click)="cancelEditApplicant()">✕</button>
+                  <button *ngIf="app.status === 'FILLED'" class="ses-btn-success !px-2.5 !py-2" title="Aprobar" (click)="startReview(app.id, 'approve')">
+                    <lucide-icon [img]="CheckIcon" [size]="16"></lucide-icon>
+                  </button>
+                  <button *ngIf="app.status === 'FILLED'" class="ses-btn-danger !px-2.5 !py-2" title="Rechazar / pedir correcciones" (click)="startReview(app.id, 'reject')">
+                    <lucide-icon [img]="XIcon" [size]="16"></lucide-icon>
+                  </button>
+                  <button class="ses-btn-outline !px-2.5 !py-2" title="Previsualizar PDF" (click)="previewPdf(app.id)">
+                    <lucide-icon [img]="FileSearchIcon" [size]="16"></lucide-icon>
+                  </button>
+                  <button class="ses-btn-outline !px-2.5 !py-2" title="Descargar PDF" (click)="exportPdf(app.id)">
+                    <lucide-icon [img]="DownloadIcon" [size]="16"></lucide-icon>
+                  </button>
+                </div>
+              </div>
+
+              <!-- detalle expandible -->
+              <div *ngIf="previewId === app.id" class="mt-4 rounded-xl border border-border bg-muted/30 p-5">
+                <div class="mb-3 flex items-center justify-between">
+                  <h4 class="font-semibold text-foreground">Detalle #{{ app.id }} — {{ app.form_template.name }}</h4>
+                  <button class="text-muted-foreground hover:text-foreground" (click)="previewId = null">
+                    <lucide-icon [img]="XIcon" [size]="18"></lucide-icon>
+                  </button>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div *ngFor="let resp of app.responses">
+                    <span class="ses-label">{{ getLabel(app, resp.question_key) }}</span>
+                    <p class="whitespace-pre-wrap break-words text-sm font-medium text-foreground">{{ resp.answer }}</p>
+                  </div>
+                </div>
+
+                <div *ngIf="app.attachments?.length > 0" class="mt-4">
+                  <span class="ses-label">Evidencia</span>
+                  <div class="flex flex-wrap gap-2">
+                    <a *ngFor="let att of app.attachments" [href]="att.file" target="_blank">
+                      <img [src]="att.file" class="h-20 w-20 rounded-lg border border-border object-cover">
+                    </a>
+                  </div>
+                </div>
+
+                <div class="mt-4">
+                  <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-primary bg-primary/5 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10">
+                    <lucide-icon [img]="CameraIcon" [size]="16"></lucide-icon>
+                    Subir foto de corroboración (visita)
+                    <input type="file" (change)="uploadCorroboration($event, app.id)" accept="image/*" class="hidden">
+                  </label>
+                  <span *ngIf="uploadingCorroboration === app.id" class="ml-2 text-sm text-muted-foreground">Subiendo...</span>
+                </div>
+
+                <div *ngIf="reviewingId === app.id" class="mt-4 rounded-xl border border-border bg-card p-4">
+                  <h4 class="mb-2 font-semibold text-foreground">
+                    {{ reviewAction === 'approve' ? 'Aprobar Estudio' : 'Rechazar / Pedir correcciones' }}
+                  </h4>
+                  <textarea [(ngModel)]="verificationNotes" class="ses-input min-h-24"
+                            [placeholder]="reviewAction === 'approve' ? 'Notas de verificación...' : 'Indica qué debe corregir el solicitante...'"></textarea>
+                  <div class="mt-3 flex justify-end gap-2">
+                    <button class="ses-btn-outline" (click)="reviewingId = null">Cancelar</button>
+                    <button [class]="reviewAction === 'approve' ? 'ses-btn-primary' : 'ses-btn-danger'" (click)="submitReview(app.id)">
+                      {{ reviewAction === 'approve' ? 'Finalizar Aprobación' : 'Enviar Correcciones' }}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </aside>
 
-          <main class="main-content">
-            <div class="card list-card">
-              <div class="list-header"><h3>Listado de Solicitantes</h3></div>
-              <table class="modern-table">
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Email</th>
-                    <th class="text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let a of applicants">
-                    <td><strong>{{ a.first_name }} {{ a.last_name }}</strong></td>
-                    <td>{{ a.email }}</td>
-                    <td class="text-right actions">
-                      <button class="btn-outline-mini" (click)="editApplicant(a)">✏️</button>
-                      <button class="btn-danger-mini" (click)="deleteApplicant(a.id)">🗑️</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div *ngIf="filteredApplications().length === 0" class="flex flex-col items-center gap-2 px-5 py-12 text-center">
+              <lucide-icon [img]="InboxIcon" [size]="32" class="text-muted-foreground/60"></lucide-icon>
+              <p class="text-sm text-muted-foreground">No hay estudios en este filtro.</p>
             </div>
-          </main>
-        </div>
+          </div>
+        </main>
+      </div>
 
-        <!-- TAB 3: PLANTILLAS -->
-        <div *ngIf="activeTab === 'templates'" class="grid">
-          <main class="main-content" style="grid-column: span 2;">
-            <div class="card list-card">
-              <div class="list-header"><h3>Plantillas de Formularios</h3></div>
-              <table class="modern-table">
-                <thead>
-                  <tr>
-                    <th>Nombre de Plantilla</th>
-                    <th>Creada el</th>
-                    <th class="text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let t of templates">
-                    <td><strong>{{ t.name }}</strong></td>
-                    <td>{{ t.created_at | date:'short' }}</td>
-                    <td class="text-right actions">
-                      <button class="btn-danger-mini" (click)="deleteTemplate(t.id)">🗑️ Eliminar</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+      <!-- ===== SOLICITANTES ===== -->
+      <div *ngIf="activeTab === 'applicants'" class="grid gap-6 lg:grid-cols-[320px_1fr]">
+        <aside class="ses-card h-fit p-6">
+          <h3 class="mb-4 text-sm font-bold uppercase tracking-wide text-primary">
+            {{ editingApplicant ? 'Editar' : 'Registrar' }} Solicitante
+          </h3>
+          <input [(ngModel)]="newApplicant.first_name" class="ses-input mb-2" placeholder="Nombres">
+          <input [(ngModel)]="newApplicant.last_name" class="ses-input mb-2" placeholder="Apellidos">
+          <input [(ngModel)]="newApplicant.email" class="ses-input mb-4" placeholder="Correo electrónico">
+          <div class="flex gap-2">
+            <button class="ses-btn-primary flex-1" (click)="saveApplicant()">
+              <lucide-icon [img]="UserPlusIcon" [size]="16"></lucide-icon>
+              {{ editingApplicant ? 'Guardar Cambios' : 'Registrar' }}
+            </button>
+            <button *ngIf="editingApplicant" class="ses-btn-outline" (click)="cancelEditApplicant()">
+              <lucide-icon [img]="XIcon" [size]="16"></lucide-icon>
+            </button>
+          </div>
+        </aside>
+
+        <main class="ses-card overflow-hidden">
+          <div class="border-b border-border bg-muted/40 px-5 py-4"><h3 class="font-semibold text-foreground">Listado de Solicitantes</h3></div>
+          <div class="divide-y divide-border">
+            <div *ngFor="let a of applicants" class="flex items-center gap-3 px-5 py-4">
+              <div class="min-w-0 flex-1">
+                <p class="font-semibold text-foreground">{{ a.first_name }} {{ a.last_name }}</p>
+                <p class="truncate text-xs text-muted-foreground">{{ a.email }}</p>
+              </div>
+              <button class="ses-btn-outline !px-2.5 !py-2" (click)="editApplicant(a)" title="Editar">
+                <lucide-icon [img]="PencilIcon" [size]="16"></lucide-icon>
+              </button>
+              <button class="ses-btn-danger !px-2.5 !py-2" (click)="deleteApplicant(a.id)" title="Eliminar">
+                <lucide-icon [img]="TrashIcon" [size]="16"></lucide-icon>
+              </button>
             </div>
-          </main>
-        </div>
+            <p *ngIf="applicants.length === 0" class="px-5 py-12 text-center text-sm text-muted-foreground">Aún no hay solicitantes.</p>
+          </div>
+        </main>
+      </div>
 
+      <!-- ===== PLANTILLAS ===== -->
+      <div *ngIf="activeTab === 'templates'" class="ses-card overflow-hidden">
+        <div class="border-b border-border bg-muted/40 px-5 py-4"><h3 class="font-semibold text-foreground">Plantillas de Formularios</h3></div>
+        <div class="divide-y divide-border">
+          <div *ngFor="let t of templates" class="flex items-center gap-3 px-5 py-4">
+            <span class="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
+              <lucide-icon [img]="FileTextIcon" [size]="18"></lucide-icon>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-foreground">{{ t.name }}</p>
+              <p class="text-xs text-muted-foreground">Creada el {{ t.created_at | date:'short' }}</p>
+            </div>
+            <button class="ses-btn-danger !px-3 !py-2" (click)="deleteTemplate(t.id)">
+              <lucide-icon [img]="TrashIcon" [size]="16"></lucide-icon> Eliminar
+            </button>
+          </div>
+          <p *ngIf="templates.length === 0" class="px-5 py-12 text-center text-sm text-muted-foreground">No hay plantillas.</p>
+        </div>
       </div>
     </div>
   `,
-  styles: [`
-    .dashboard-container { padding-top: 1rem; }
-    .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-    .header-actions { display: flex; gap: 1rem; }
-    
-    .tab-nav { display: flex; gap: 0.5rem; border-bottom: 2px solid var(--border); margin-bottom: 1rem; }
-    .tab-nav button { background: none; border: none; padding: 1rem 1.5rem; font-weight: 700; color: var(--text-light); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
-    .tab-nav button:hover { color: var(--primary); }
-    .tab-nav button.active { color: var(--primary); border-bottom-color: var(--primary); }
-
-    .grid { display: grid; grid-template-columns: 300px 1fr; gap: 2rem; }
-    
-    .sidebar-section h3 { font-size: 0.9rem; margin-top: 0; margin-bottom: 1rem; color: var(--primary); font-weight: 700; text-transform: uppercase; }
-    .form-group label { display: block; font-size: 0.7rem; font-weight: 700; color: var(--text-light); margin-top: 0.75rem; margin-bottom: 0.25rem; }
-    .form-group input { margin-bottom: 0.5rem; font-size: 0.9rem; }
-    .mt-1 { margin-top: 1rem; }
-    .mt-2 { margin-top: 2rem; }
-    
-    .list-card { padding: 0; overflow: hidden; border-radius: 12px; }
-    .list-header { padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border-bottom: 1px solid var(--border); }
-    .list-header h3 { margin: 0; font-size: 1rem; }
-    
-    .modern-table { width: 100%; border-collapse: collapse; }
-    .modern-table th { background: #f1f5f9; padding: 0.75rem 1.5rem; text-align: left; font-size: 0.65rem; text-transform: uppercase; color: var(--text-light); }
-    .modern-table td { padding: 1rem 1.5rem; border-top: 1px solid var(--border); }
-    
-    .user-info strong { display: block; color: var(--text); }
-    .user-info span { font-size: 0.7rem; color: var(--text-light); }
-    
-    .badge { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
-    .badge.pending { background: #fef9c3; color: #854d0e; }
-    .badge.filled { background: #dcfce7; color: #166534; }
-    .badge.approved { background: #dbeafe; color: #1e40af; }
-    .badge.rejected { background: #fee2e2; color: #991b1b; }
-    
-    .actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
-    .btn-outline-mini { background: #f1f5f9; border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; }
-    .btn-success-mini { background: var(--success); color: white; border: none; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; }
-    .btn-danger-mini { background: #fee2e2; color: #ef4444; border: none; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; }
-    .corroboration-upload { margin-top: 1rem; display: flex; align-items: center; gap: 0.75rem; }
-    .btn-corroborate { display: inline-block; background: #eff6ff; color: var(--primary); border: 1px dashed var(--primary); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.8rem; }
-    .btn-reject-confirm { background: var(--danger); color: white; }
-    .local-status { font-size: 0.8rem; color: var(--text-light); }
-    .local-status.success { color: var(--success); font-weight: 600; }
-    
-    .preview-row { background: #f8fafc; }
-    .preview-content { padding: 1.5rem; background: white; border: 1px solid var(--border); margin: 0.5rem 1.5rem 1.5rem; border-radius: 8px; }
-    .responses-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem; margin-top: 1rem; }
-    .resp-item label { font-size: 0.65rem; color: var(--text-light); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 0.25rem; }
-    .resp-item p { margin: 0; font-weight: 500; font-size: 0.85rem; word-break: break-word; white-space: pre-wrap; }
-    
-    .img-grid { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-    .img-item img { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); }
-
-    .flex-gap { display: flex; gap: 0.5rem; }
-    .w-full { width: 100%; }
-
-    .animate-in { animation: fadeIn 0.3s ease-out; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  `]
 })
 export class ConsultantDashboardComponent implements OnInit {
+  // iconos
+  readonly WrenchIcon = Wrench; readonly RefreshIcon = RefreshCw; readonly EyeIcon = Eye;
+  readonly CheckIcon = Check; readonly XIcon = X; readonly DownloadIcon = Download;
+  readonly SearchIcon = Search; readonly TrashIcon = Trash2; readonly PencilIcon = Pencil;
+  readonly CameraIcon = Camera; readonly SendIcon = Send; readonly UserPlusIcon = UserPlus;
+  readonly FileSearchIcon = FileSearch; readonly FileTextIcon = FileText; readonly InboxIcon = Inbox;
+
   activeTab = 'studies';
-  
-  // Applicant Management
+  tabs: TubelightItem[] = [
+    { name: 'Estudios', value: 'studies', icon: ClipboardList },
+    { name: 'Solicitantes', value: 'applicants', icon: Users },
+    { name: 'Plantillas', value: 'templates', icon: FileText },
+  ];
+
+  // filtros de estudios
+  studyFilter = 'ALL';
+  searchTerm = '';
+  filters = [
+    { label: 'Todos', value: 'ALL' },
+    { label: 'Por llenar', value: 'PENDING' },
+    { label: 'Por corroborar', value: 'FILLED' },
+    { label: 'Aprobados', value: 'APPROVED' },
+    { label: 'Rechazados', value: 'REJECTED' },
+  ];
+
   newApplicant = { email: '', first_name: '', last_name: '' };
   editingApplicant: any = null;
   applicants: any[] = [];
-  
-  // App State
+
   applications: any[] = [];
   templates: any[] = [];
   selectedFormId: number | null = null;
   targetApplicantId: number | null = null;
-  
+
   loading = false;
   assignStatus = '';
-  
+
   previewId: number | null = null;
   reviewingId: number | null = null;
   reviewAction: 'approve' | 'reject' = 'approve';
@@ -312,9 +271,7 @@ export class ConsultantDashboardComponent implements OnInit {
 
   constructor(private api: ApiService, private router: Router) {}
 
-  ngOnInit() {
-    this.loadInitialData();
-  }
+  ngOnInit() { this.loadInitialData(); }
 
   loadInitialData() {
     this.loadApplications();
@@ -326,7 +283,25 @@ export class ConsultantDashboardComponent implements OnInit {
     this.api.getApplications().subscribe(data => this.applications = data);
   }
 
-  // Applicant Management
+  // ---- filtros ----
+  countByStatus(value: string): number {
+    if (value === 'ALL') return this.applications.length;
+    return this.applications.filter(a => a.status === value).length;
+  }
+  filteredApplications(): any[] {
+    const term = this.searchTerm.trim().toLowerCase();
+    return this.applications.filter(a => {
+      const okStatus = this.studyFilter === 'ALL' || a.status === this.studyFilter;
+      const name = `${a.applicant?.first_name ?? ''} ${a.applicant?.last_name ?? ''}`.toLowerCase();
+      const okTerm = !term || name.includes(term) || String(a.id).includes(term);
+      return okStatus && okTerm;
+    });
+  }
+  statusLabel(status: string): string {
+    return ({ PENDING: 'Por llenar', FILLED: 'Por corroborar', APPROVED: 'Aprobado', REJECTED: 'Rechazado' } as any)[status] || status;
+  }
+
+  // ---- solicitantes ----
   saveApplicant() {
     if (this.editingApplicant) {
       this.api.updateApplicant(this.editingApplicant.id, this.newApplicant).subscribe(() => {
@@ -340,19 +315,10 @@ export class ConsultantDashboardComponent implements OnInit {
       });
     }
   }
-
-  editApplicant(applicant: any) {
-    this.editingApplicant = applicant;
-    this.newApplicant = { ...applicant };
-  }
-
-  cancelEditApplicant() {
-    this.editingApplicant = null;
-    this.newApplicant = { email: '', first_name: '', last_name: '' };
-  }
-
+  editApplicant(applicant: any) { this.editingApplicant = applicant; this.newApplicant = { ...applicant }; }
+  cancelEditApplicant() { this.editingApplicant = null; this.newApplicant = { email: '', first_name: '', last_name: '' }; }
   deleteApplicant(id: number) {
-    if (confirm('¿Estás seguro de eliminar este solicitante? Se borrarán sus estudios asociados.')) {
+    if (confirm('¿Eliminar este solicitante? Se borrarán sus estudios asociados.')) {
       this.api.deleteApplicant(id).subscribe(() => {
         this.api.getApplicants().subscribe(data => this.applicants = data);
         this.loadApplications();
@@ -360,12 +326,10 @@ export class ConsultantDashboardComponent implements OnInit {
     }
   }
 
-  // Template Management
+  // ---- plantillas ----
   deleteTemplate(id: number) {
     if (confirm('¿Eliminar esta plantilla permanentemente?')) {
-      this.api.deleteTemplate(id).subscribe(() => {
-        this.api.getTemplates().subscribe(data => this.templates = data);
-      });
+      this.api.deleteTemplate(id).subscribe(() => this.api.getTemplates().subscribe(data => this.templates = data));
     }
   }
 
@@ -384,9 +348,7 @@ export class ConsultantDashboardComponent implements OnInit {
     }
   }
 
-  togglePreview(id: number) {
-    this.previewId = this.previewId === id ? null : id;
-  }
+  togglePreview(id: number) { this.previewId = this.previewId === id ? null : id; }
 
   startReview(id: number, action: 'approve' | 'reject') {
     this.previewId = id;
@@ -411,10 +373,7 @@ export class ConsultantDashboardComponent implements OnInit {
     if (!file) return;
     this.uploadingCorroboration = appId;
     this.api.uploadAttachment(appId, 'corroboracion_visita', file).subscribe({
-      next: () => {
-        this.uploadingCorroboration = null;
-        this.loadApplications();
-      },
+      next: () => { this.uploadingCorroboration = null; this.loadApplications(); },
       error: () => this.uploadingCorroboration = null
     });
   }
@@ -432,28 +391,16 @@ export class ConsultantDashboardComponent implements OnInit {
   }
 
   previewPdf(id: number) {
-    this.api.exportPdf(id).subscribe(blob => {
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
-    });
+    this.api.exportPdf(id).subscribe(blob => window.open(window.URL.createObjectURL(blob), '_blank'));
   }
-
   exportPdf(id: number) {
     this.api.exportPdf(id).subscribe(blob => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `Estudio_${id}.pdf`;
-      a.click();
+      a.href = url; a.download = `Estudio_${id}.pdf`; a.click();
     });
   }
 
-  goToBuilder() {
-    this.router.navigate(['/builder']);
-  }
-
-  logout() {
-    localStorage.clear();
-    window.location.href = '/login';
-  }
+  goToBuilder() { this.router.navigate(['/builder']); }
+  logout() { localStorage.clear(); window.location.href = '/login'; }
 }

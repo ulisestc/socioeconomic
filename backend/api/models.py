@@ -11,6 +11,9 @@ class User(AbstractUser):
     privacy_acceptance_ip = models.GenericIPAddressField(null=True, blank=True)
     privacy_acceptance_timestamp = models.DateTimeField(null=True, blank=True)
     temp_password = models.CharField(max_length=128, blank=True, null=True)
+    # True para solicitantes recién creados: fuerza el multi-step de primer login
+    # (cambiar usuario a su correo + nueva contraseña). Ver views.change_credentials.
+    must_change_credentials = models.BooleanField(default=False)
 
 
 

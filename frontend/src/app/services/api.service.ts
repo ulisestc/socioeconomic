@@ -73,6 +73,10 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/applications/reset_password/`, { email });
   }
 
+  changeCredentials(newPassword: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/applications/change_credentials/`, { new_password: newPassword });
+  }
+
   exportPdf(applicationId: number): Observable<Blob> {
     return this.http.get(`${this.apiUrl}/applications/${applicationId}/export_pdf/`, { responseType: 'blob' });
   }

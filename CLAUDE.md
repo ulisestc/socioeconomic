@@ -8,8 +8,14 @@ Flujo del producto: **el solicitante llena su estudio en línea** (con fotos/doc
 
 ## Stack
 - **Backend:** Django 5 + DRF + SimpleJWT · MySQL 8 (PyMySQL) · WeasyPrint (PDF) · django-cleanup · Pillow (vía WeasyPrint).
-- **Frontend:** Angular 21 standalone (Node 22). Componentes con template + estilos inline.
+- **Frontend:** Angular 21 standalone (Node 22) + **Tailwind v4** (`@tailwindcss/postcss` vía `.postcssrc.json`) con **tokens estilo shadcn** (HSL en `src/styles.css`, `@theme inline`) + **lucide-angular** (iconos vía `[img]`) + `clsx`/`tailwind-merge` (`cn()` en `src/app/lib/utils.ts`). Color primario azul `#2563eb` = `--primary`.
 - **Infra:** Docker Compose → `db` (MySQL), `mail` (smtp4dev), `backend`, `frontend`.
+
+### UI / componentes (rediseño CAPDIR)
+- `src/app/ui/` = equivalente al `/components/ui` de shadcn: `capdir-logo`, `aurora-background`, `app-header` (fijo, logo + campana de notificaciones del consultor), `app-footer`, `hero` (landing del login), `tubelight-nav` (tabs del consultor), `notification-bell` (deriva de `getApplications()` los `FILLED`, marca leídos en `localStorage`), `accordion-item` (form del solicitante), `study-card` (lista unificada del solicitante: una card con estatus a la derecha).
+- Shell global: `app.ts` monta `<app-header>` + `<router-outlet>` + `<app-footer>`.
+- **Clases reutilizables** en `styles.css` (`@layer components`): `.ses-card`, `.ses-input`, `.ses-label`, `.ses-btn-primary/outline/ghost/danger/success`, `.ses-badge-pending/filled/approved/rejected`. Úsalas antes de reinventar estilos. Ojo: `@apply` no acepta clases propias entre sí.
+- ⚠️ `node_modules` del front vive en un **volumen Docker** (`frontend_node_modules`); el `node_modules` local es root/vacío. Instala deps **dentro del contenedor**: `docker compose exec frontend npm install ...`. Build/verify: `docker compose exec frontend npx ng build`.
 
 ## Cómo correr (local)
 ```bash
@@ -22,11 +28,17 @@ docker compose up --build
 
 ## Roles y rutas
 - **CONSULTANT (entrevistador):** `/consultant`, `/builder`. Crea solicitantes, arma formularios (manual), asigna estudios, revisa/aprueba/**rechaza**, sube **fotos de corroboración**, previsualiza/exporta PDF.
-- **APPLICANT (solicitante):** `/applicant`. Recibe credenciales por correo, acepta aviso de privacidad, llena el formulario (fotos + borrador), ve estatus y **corrige si lo rechazan**.
-- Sin guards de ruta (la API sí está protegida por JWT). Login decide a dónde va según `role`.
+- **APPLICANT (solicitante):** `/applicant`. Recibe credenciales **temporales** por correo, en su **primer login** pasa por el multi-step `/configurar-acceso` (cambia usuario→correo + contraseña), acepta aviso de privacidad, llena el formulario (fotos + borrador), ve estatus y **corrige si lo rechazan**.
+- Sin guards de ruta (la API sí está protegida por JWT). Login decide a dónde va según `role` y `must_change_credentials`.
+
+## Primer login / credenciales temporales
+- `User.must_change_credentials` (default `False`; `True` al crear solicitante y al recuperar contraseña). El serializer `me` lo expone.
+- Acción DRF `change_credentials` (`IsApplicant`): fija `username = email`, `set_password`, `must_change_credentials=False`. El JWT vigente sigue válido (identifica por id). Front: `api.changeCredentials()` desde `credential-setup.component`.
+- Los correos de `assign_form` (primer envío) y `reset_password` dejan claro que las claves son **temporales** y que en el primer login el usuario será su **correo**.
+- Tras el cambio, el login es con **correo** + nueva contraseña (el username autogenerado deja de servir).
 
 ## Modelos (`backend/api/models.py`)
-`User` (role, campos de privacidad + IP/timestamp, temp_password) · `FormTemplate(structure JSON)` · `Application(status: PENDING/FILLED/APPROVED/REJECTED, verification_notes)` · `Response(question_key, answer JSON)` · `Attachment(question_key, file ImageField)`.
+`User` (role, campos de privacidad + IP/timestamp, temp_password, **must_change_credentials**) · `FormTemplate(structure JSON)` · `Application(status: PENDING/FILLED/APPROVED/REJECTED, verification_notes)` · `Response(question_key, answer JSON)` · `Attachment(question_key, file ImageField)`.
 
 ## Formato de `structure` (CRÍTICO — del que depende todo)
 Lista de secciones; lo consumen `seed.py`, el builder, `applicant-form` y `export_pdf`:

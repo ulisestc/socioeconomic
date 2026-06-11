@@ -1,69 +1,132 @@
+@import "tailwindcss";
+
+/* ===== Tokens shadcn (mapeo a utilidades Tailwind v4) ===== */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-aurora: aurora 60s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+}
+
+/* ===== Paleta (azul CAPDIR, modo claro) ===== */
 :root {
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --bg: #f8fafc;
-  --card: #ffffff;
-  --text: #1e293b;
-  --text-light: #64748b;
-  --border: #e2e8f0;
-  --success: #22c55e;
-  --danger: #ef4444;
-  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 221 83% 53%;          /* #2563eb */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 214 95% 93%;
+  --accent-foreground: 221 83% 33%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 38 95% 18%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 221 83% 53%;
+  --radius: 0.65rem;
 }
 
-body {
-  margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+  }
 }
 
-* { box-sizing: border-box; }
+/* ===== Clases de componentes reutilizables ===== */
+@layer components {
+  .ses-card {
+    @apply bg-card text-card-foreground rounded-2xl border border-border shadow-sm;
+  }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  .ses-input {
+    @apply w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground
+           placeholder:text-muted-foreground/70 shadow-sm transition
+           focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring;
+  }
+
+  .ses-label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5;
+  }
+
+  .ses-btn,
+  .ses-btn-primary, .ses-btn-outline, .ses-btn-ghost, .ses-btn-danger, .ses-btn-success {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold
+           px-4 py-2.5 transition-colors disabled:pointer-events-none disabled:opacity-50
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50;
+  }
+  .ses-btn-primary { @apply bg-primary text-primary-foreground shadow-sm hover:bg-primary/90; }
+  .ses-btn-outline { @apply border border-border bg-card hover:bg-accent hover:text-accent-foreground; }
+  .ses-btn-ghost   { @apply hover:bg-accent hover:text-accent-foreground; }
+  .ses-btn-danger  { @apply bg-destructive text-destructive-foreground hover:bg-destructive/90; }
+  .ses-btn-success { @apply bg-success text-success-foreground hover:bg-success/90; }
+
+  .ses-badge,
+  .ses-badge-pending, .ses-badge-filled, .ses-badge-approved, .ses-badge-rejected {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide;
+  }
+  .ses-badge-pending  { @apply bg-warning/15 text-warning-foreground; }
+  .ses-badge-filled   { @apply bg-success/15 text-[hsl(142_71%_30%)]; }
+  .ses-badge-approved { @apply bg-primary/12 text-[hsl(221_83%_40%)]; }
+  .ses-badge-rejected { @apply bg-destructive/12 text-[hsl(0_72%_42%)]; }
 }
 
-.card {
-  background: var(--card);
-  padding: 2rem;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+/* ===== Keyframes globales ===== */
+@keyframes aurora {
+  from { background-position: 50% 50%, 50% 50%; }
+  to   { background-position: 350% 50%, 350% 50%; }
 }
 
-button {
-  cursor: pointer;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: none;
-  font-weight: 600;
-  transition: all 0.2s;
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-18px); }
 }
 
-button.primary {
-  background: var(--primary);
-  color: white;
+@keyframes ses-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
-button.primary:hover {
-  background: var(--primary-hover);
-  transform: translateY(-1px);
-}
-
-input, textarea, select {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-top: 0.5rem;
-  font-size: 1rem;
-}
-
-input:focus {
-  outline: 2px solid var(--primary);
-  border-color: transparent;
-}
+.animate-in { animation: ses-fade-in 0.4s ease-out; }

@@ -12,7 +12,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'role', 'is_privacy_notice_accepted', 'first_name', 'last_name', 'privacy_acceptance_ip', 'privacy_acceptance_timestamp')
+        fields = ('id', 'username', 'email', 'role', 'is_privacy_notice_accepted', 'first_name', 'last_name', 'privacy_acceptance_ip', 'privacy_acceptance_timestamp', 'must_change_credentials')
 
 class FormTemplateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -76,6 +76,7 @@ class CreateApplicantSerializer(serializers.ModelSerializer):
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
             password=password,
-            role='APPLICANT'
+            role='APPLICANT',
+            must_change_credentials=True,  # fuerza el multi-step de primer login
         )
         return user
