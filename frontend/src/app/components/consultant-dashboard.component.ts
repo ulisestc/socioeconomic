@@ -8,11 +8,12 @@ import {
 } from 'lucide-angular';
 import { ApiService } from '../services/api.service';
 import { TubelightNavComponent, TubelightItem } from '../ui/tubelight-nav.component';
+import { SearchSelectComponent, SearchOption } from '../ui/search-select.component';
 
 @Component({
   selector: 'app-consultant-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, TubelightNavComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, TubelightNavComponent, SearchSelectComponent],
   template: `
     <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 animate-in">
       <!-- encabezado -->
@@ -36,15 +37,15 @@ import { TubelightNavComponent, TubelightItem } from '../ui/tubelight-nav.compon
         <aside class="ses-card h-fit p-6">
           <h3 class="mb-4 text-sm font-bold uppercase tracking-wide text-primary">Asignar Nuevo Estudio</h3>
           <label class="ses-label">Solicitante</label>
-          <select [(ngModel)]="targetApplicantId" class="ses-input mb-3">
-            <option [ngValue]="null">— Buscar solicitante —</option>
-            <option *ngFor="let a of applicants" [ngValue]="a.id">{{ a.first_name }} {{ a.last_name }}</option>
-          </select>
+          <div class="mb-3">
+            <search-select [items]="applicantOptions" placeholder="Buscar solicitante..."
+                           (selected)="targetApplicantId = $event"></search-select>
+          </div>
           <label class="ses-label">Plantilla</label>
-          <select [(ngModel)]="selectedFormId" class="ses-input mb-4">
-            <option [ngValue]="null">— Seleccionar plantilla —</option>
-            <option *ngFor="let t of templates" [ngValue]="t.id">{{ t.name }}</option>
-          </select>
+          <div class="mb-4">
+            <search-select [items]="templateOptions" placeholder="Buscar plantilla..."
+                           (selected)="selectedFormId = $event"></search-select>
+          </div>
           <button class="ses-btn-primary w-full" (click)="assignForm()"
                   [disabled]="!targetApplicantId || !selectedFormId || loading">
             <lucide-icon [img]="SendIcon" [size]="16"></lucide-icon> Asignar Estudio
@@ -72,8 +73,8 @@ import { TubelightNavComponent, TubelightItem } from '../ui/tubelight-nav.compon
               </button>
             </div>
             <div class="relative w-full lg:w-64">
-              <lucide-icon [img]="SearchIcon" [size]="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"></lucide-icon>
-              <input [(ngModel)]="searchTerm" class="ses-input pl-9" placeholder="Buscar por solicitante...">
+              <lucide-icon [img]="SearchIcon" [size]="16" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"></lucide-icon>
+              <input [(ngModel)]="searchTerm" class="ses-input pl-10" placeholder="Buscar por solicitante...">
             </div>
           </div>
 
@@ -130,7 +131,7 @@ import { TubelightNavComponent, TubelightItem } from '../ui/tubelight-nav.compon
                   </div>
                 </div>
 
-                <div class="mt-4">
+                <div class="mt-4" *ngIf="app.status !== 'APPROVED'">
                   <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-primary bg-primary/5 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10">
                     <lucide-icon [img]="CameraIcon" [size]="16"></lucide-icon>
                     Subir foto de corroboración (visita)
@@ -138,6 +139,9 @@ import { TubelightNavComponent, TubelightItem } from '../ui/tubelight-nav.compon
                   </label>
                   <span *ngIf="uploadingCorroboration === app.id" class="ml-2 text-sm text-muted-foreground">Subiendo...</span>
                 </div>
+                <p *ngIf="app.status === 'APPROVED'" class="mt-4 text-sm text-muted-foreground">
+                  Estudio aprobado: no se admiten más imágenes.
+                </p>
 
                 <div *ngIf="reviewingId === app.id" class="mt-4 rounded-xl border border-border bg-card p-4">
                   <h4 class="mb-2 font-semibold text-foreground">
@@ -281,6 +285,14 @@ export class ConsultantDashboardComponent implements OnInit {
 
   loadApplications() {
     this.api.getApplications().subscribe(data => this.applications = data);
+  }
+
+  // ---- opciones de búsqueda al asignar ----
+  get applicantOptions(): SearchOption[] {
+    return this.applicants.map(a => ({ id: a.id, label: `${a.first_name} ${a.last_name}`.trim() || a.email }));
+  }
+  get templateOptions(): SearchOption[] {
+    return this.templates.map(t => ({ id: t.id, label: t.name }));
   }
 
   // ---- filtros ----

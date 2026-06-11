@@ -40,21 +40,47 @@ import { ApiService } from '../services/api.service';
 
         <div class="space-y-3">
           <div *ngFor="let q of section.questions; let qIdx = index"
-               class="flex items-start gap-2 rounded-lg bg-muted/40 p-3">
-            <div class="flex flex-1 flex-col gap-2 sm:flex-row">
-              <input [(ngModel)]="q.label" class="ses-input flex-[2]" placeholder="Texto de la pregunta">
-              <select [(ngModel)]="q.type" class="ses-input sm:w-44">
-                <option value="text">Texto Corto</option>
-                <option value="textarea">Texto Largo</option>
-                <option value="tel">Teléfono</option>
-                <option value="file">Imagen / Foto</option>
-                <option value="number">Número</option>
-              </select>
+               class="space-y-3 rounded-lg bg-muted/40 p-3">
+            <div class="flex items-start gap-2">
+              <div class="flex flex-1 flex-col gap-2 sm:flex-row">
+                <input [(ngModel)]="q.label" class="ses-input flex-[2]" placeholder="Texto de la pregunta">
+                <select [(ngModel)]="q.type" (ngModelChange)="onTypeChange(q)" class="ses-input sm:w-52">
+                  <option value="text">Texto corto</option>
+                  <option value="textarea">Texto largo (párrafo)</option>
+                  <option value="number">Número</option>
+                  <option value="tel">Teléfono</option>
+                  <option value="email">Correo electrónico</option>
+                  <option value="date">Fecha</option>
+                  <option value="file">Imagen / Archivo</option>
+                  <option value="radio">Opción múltiple</option>
+                  <option value="select">Lista desplegable</option>
+                  <option value="checkbox">Casillas de verificación</option>
+                </select>
+              </div>
+              <button class="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20"
+                      (click)="removeQuestion(sIdx, qIdx)" title="Eliminar pregunta">
+                <lucide-icon [img]="XIcon" [size]="14"></lucide-icon>
+              </button>
             </div>
-            <button class="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20"
-                    (click)="removeQuestion(sIdx, qIdx)">
-              <lucide-icon [img]="XIcon" [size]="14"></lucide-icon>
-            </button>
+
+            <!-- editor de opciones (radio / select / checkbox) -->
+            <div *ngIf="needsOptions(q.type)" class="space-y-2 border-t border-border pt-3">
+              <p class="ses-label !mb-0">Opciones</p>
+              <div *ngFor="let opt of q.options; let oIdx = index; trackBy: trackByIndex" class="flex items-center gap-2">
+                <span class="text-xs text-muted-foreground w-4 text-right">{{ oIdx + 1 }}.</span>
+                <input [(ngModel)]="q.options[oIdx]" class="ses-input" placeholder="Texto de la opción">
+                <button class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20"
+                        (click)="removeOption(q, oIdx)" [disabled]="q.options.length <= 1">
+                  <lucide-icon [img]="XIcon" [size]="14"></lucide-icon>
+                </button>
+              </div>
+              <button class="text-sm font-semibold text-primary hover:underline" (click)="addOption(q)">+ Añadir opción</button>
+            </div>
+
+            <label class="flex w-fit items-center gap-2 text-xs font-medium text-muted-foreground">
+              <input type="checkbox" [(ngModel)]="q.required" class="h-4 w-4 accent-[hsl(var(--primary))]">
+              Respuesta obligatoria
+            </label>
           </div>
           <button class="w-full rounded-lg border border-dashed border-border py-2 text-sm font-semibold text-primary hover:bg-accent" (click)="addQuestion(sIdx)">
             + Añadir Pregunta
@@ -84,18 +110,39 @@ export class FormBuilderComponent implements OnInit {
 
   ngOnInit() { this.addSection(); }
 
-  addSection() { this.sections.push({ section: 'Nueva Sección', questions: [{ label: '', type: 'text' }] }); }
+  addSection() { this.sections.push({ section: 'Nueva Sección', questions: [{ label: '', type: 'text', required: false }] }); }
   removeSection(index: number) { this.sections.splice(index, 1); }
-  addQuestion(sIdx: number) { this.sections[sIdx].questions.push({ label: '', type: 'text' }); }
+  addQuestion(sIdx: number) { this.sections[sIdx].questions.push({ label: '', type: 'text', required: false }); }
   removeQuestion(sIdx: number, qIdx: number) { this.sections[sIdx].questions.splice(qIdx, 1); }
+
+  trackByIndex(i: number) { return i; }
+
+  // Tipos que requieren lista de opciones
+  needsOptions(type: string): boolean { return ['radio', 'select', 'checkbox'].includes(type); }
+
+  onTypeChange(q: any) {
+    if (this.needsOptions(q.type)) {
+      if (!q.options || q.options.length === 0) q.options = ['', ''];
+    }
+  }
+  addOption(q: any) { (q.options = q.options || []).push(''); }
+  removeOption(q: any, oIdx: number) { q.options.splice(oIdx, 1); }
 
   saveTemplate() {
     const processedSections = this.sections.map(sec => ({
       section: sec.section,
-      questions: sec.questions.filter((q: any) => q.label.trim() !== '').map((q: any) => ({
-        ...q,
-        key: q.key || `q_${Math.random().toString(36).slice(2, 7)}`
-      }))
+      questions: sec.questions.filter((q: any) => q.label.trim() !== '').map((q: any) => {
+        const base: any = {
+          key: q.key || `q_${Math.random().toString(36).slice(2, 7)}`,
+          label: q.label,
+          type: q.type,
+          required: !!q.required,
+        };
+        if (this.needsOptions(q.type)) {
+          base.options = (q.options || []).map((o: string) => (o || '').trim()).filter((o: string) => o !== '');
+        }
+        return base;
+      })
     }));
 
     this.api.createTemplate({ name: this.templateName, structure: processedSections }).subscribe({

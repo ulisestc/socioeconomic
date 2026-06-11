@@ -30,12 +30,12 @@ import { AuroraBackgroundComponent } from './aurora-background.component';
           </div>
         </div>
 
-        <span class="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-          <span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
-          CAPDIR · Capacitación Directiva
+        <span class="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-semibold text-foreground backdrop-blur">
+          <span class="h-1.5 w-1.5 rounded-full bg-foreground"></span>
+          Capdir Consultores
         </span>
         <h1 class="text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl">
-          Estudios <span class="bg-gradient-to-r from-primary to-indigo-500 bg-clip-text text-transparent">hechos fácilmente</span>
+          Estudios hechos fácilmente
         </h1>
         <p class="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
           El solicitante llena su estudio en línea, el entrevistador corrobora y aprueba,

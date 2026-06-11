@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { LucideAngularModule, User, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, Mail, CheckCircle2 } from 'lucide-angular';
 import { AuthService } from '../services/auth.service';
 import { ApiService } from '../services/api.service';
@@ -11,20 +11,29 @@ import { CapdirLogoComponent } from '../ui/capdir-logo.component';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, HeroComponent, CapdirLogoComponent],
+  imports: [CommonModule, FormsModule, RouterModule, LucideAngularModule, HeroComponent, CapdirLogoComponent],
   template: `
     <div class="mx-auto max-w-7xl px-4 py-8 animate-in">
       <app-hero class="mb-10 block"></app-hero>
 
-      <div class="mx-auto max-w-4xl overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
+      <!-- Si ya hay sesión: no mostrar login, solo acceso al panel -->
+      <div *ngIf="loggedUser" class="mx-auto max-w-md text-center">
+        <p class="text-sm text-muted-foreground">Ya iniciaste sesión como
+          <strong class="text-foreground">{{ loggedUser.first_name || loggedUser.username }}</strong>.</p>
+        <a [routerLink]="panelLink" class="ses-btn-primary mt-4 inline-flex">
+          Ir a mi panel
+          <lucide-icon [img]="ArrowRightIcon" [size]="16"></lucide-icon>
+        </a>
+      </div>
+
+      <div *ngIf="!loggedUser" class="mx-auto max-w-4xl overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
         <div class="grid md:grid-cols-2">
           <!-- panel de marca -->
-          <div class="relative hidden flex-col justify-between overflow-hidden p-10 text-white md:flex"
-               style="background-image: linear-gradient(150deg, hsl(231 75% 26%), hsl(221 83% 42%));">
+          <div class="relative hidden flex-col justify-between overflow-hidden bg-zinc-950 p-10 text-white md:flex">
             <div class="pointer-events-none absolute -right-10 top-10 h-48 w-48 rounded-full bg-white/10 blur-2xl animate-[float_7s_ease-in-out_infinite]"></div>
-            <div class="pointer-events-none absolute -bottom-10 -left-6 h-56 w-56 rounded-full bg-indigo-300/20 blur-3xl animate-[float_9s_ease-in-out_infinite]"></div>
+            <div class="pointer-events-none absolute -bottom-10 -left-6 h-56 w-56 rounded-full bg-white/5 blur-3xl animate-[float_9s_ease-in-out_infinite]"></div>
 
-            <capdir-logo [light]="true" [large]="true"></capdir-logo>
+            <capdir-logo [boxed]="true" [size]="72"></capdir-logo>
 
             <div class="relative">
               <h2 class="text-2xl font-bold leading-tight tracking-tight">
@@ -37,7 +46,7 @@ import { CapdirLogoComponent } from '../ui/capdir-logo.component';
               </ul>
             </div>
 
-            <p class="relative text-xs text-white/50">CAPDIR · Capacitación Directiva</p>
+            <p class="relative text-xs text-white/50">Capdir Consultores</p>
           </div>
 
           <!-- formulario -->
@@ -124,7 +133,7 @@ import { CapdirLogoComponent } from '../ui/capdir-logo.component';
     </div>
   `,
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   readonly UserIcon = User;
   readonly EyeIcon = Eye;
   readonly EyeOffIcon = EyeOff;
@@ -140,8 +149,19 @@ export class LoginComponent {
   showReset = false;
   resetEmail = '';
   resetStatus = '';
+  loggedUser: any = null;
 
   constructor(private auth: AuthService, private api: ApiService, private router: Router) {}
+
+  ngOnInit() {
+    this.auth.user$.subscribe(u => this.loggedUser = u);
+  }
+
+  get panelLink() {
+    if (!this.loggedUser) return '/login';
+    if (this.loggedUser.must_change_credentials) return '/configurar-acceso';
+    return this.loggedUser.role === 'CONSULTANT' ? '/consultant' : '/applicant';
+  }
 
   onLogin(e: Event) {
     e.preventDefault();

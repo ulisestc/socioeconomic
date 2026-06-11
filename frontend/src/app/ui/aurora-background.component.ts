@@ -30,7 +30,8 @@ export class AuroraBackgroundComponent {
   @Input() className = '';
   @Input() showRadialGradient = true;
 
+  // Aurora multicolor (azul/índigo/violeta) como el snippet original.
   auroraGradient =
-    'repeating-linear-gradient(100deg, hsl(221 83% 60%) 10%, hsl(231 70% 70%) 15%, hsl(210 90% 75%) 20%, hsl(250 80% 80%) 25%, hsl(221 83% 65%) 30%)';
+    'repeating-linear-gradient(100deg, #3b82f6 10%, #a5b4fc 15%, #93c5fd 20%, #ddd6fe 25%, #60a5fa 30%)';
   radialMask = 'radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%)';
 }

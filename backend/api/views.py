@@ -40,6 +40,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Application.objects.filter(applicant=user)
 
     def _send_styled_email(self, subject, to_email, context):
+        # Logo servido por el frontend (los clientes de correo lo cargan vía URL pública)
+        context.setdefault('logo_url', f'{settings.FRONTEND_URL}/logo.png')
         html_message = render_to_string('email_template.html', context)
         send_mail(
             subject,
@@ -49,6 +51,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             html_message=html_message,
             fail_silently=False,
         )
+
+    def _logo_data_uri(self):
+        """Logo embebido como data URI para que WeasyPrint lo incruste sin depender de la red."""
+        import base64
+        path = os.path.join(settings.BASE_DIR, 'templates', 'logo.png')
+        try:
+            with open(path, 'rb') as f:
+                encoded = base64.b64encode(f.read()).decode('ascii')
+            return f'data:image/png;base64,{encoded}'
+        except OSError:
+            return ''
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -301,10 +314,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             for q in section.get('questions', []):
                 key = q.get('key')
                 form_keys.add(key)
+                raw_answer = responses_dict.get(key, 'N/A')
+                # Las casillas de verificación guardan una lista → mostrarla legible
+                if isinstance(raw_answer, list):
+                    display_answer = ', '.join(str(x) for x in raw_answer) if raw_answer else 'N/A'
+                else:
+                    display_answer = raw_answer
                 sec_data['items'].append({
                     'label': q.get('label'),
                     'type': q.get('type'),
-                    'answer': responses_dict.get(key, 'N/A'),
+                    'answer': display_answer,
                     'image_urls': attachments_by_key.get(key, [])
                 })
             structured_data.append(sec_data)
@@ -319,7 +338,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             'application': application,
             'structured_data': structured_data,
             'corroboration_images': corroboration_images,
-            'today': timezone.now()
+            'today': timezone.now(),
+            'logo_data_uri': self._logo_data_uri(),
         }
         
         html_string = render_to_string('pdf_template.html', context)
@@ -340,6 +360,12 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         question_key = request.data.get('question_key')
         
         application = Application.objects.get(pk=application_id)
+        # Un estudio aprobado es final: no se admiten más imágenes (ni de visita).
+        if application.status == 'APPROVED':
+            return DRFResponse(
+                {'error': 'El estudio ya fue aprobado; no se pueden subir más imágenes.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         attachment = Attachment.objects.create(
             application=application,
             question_key=question_key,

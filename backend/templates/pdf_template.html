@@ -8,98 +8,93 @@
             @bottom-right {
                 content: "Página " counter(page) " de " counter(pages);
                 font-size: 9pt;
+                color: #71717a;
             }
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #1e293b;
+            color: #18181b;
             line-height: 1.5;
             font-size: 10pt;
         }
         .header {
-            text-align: center;
-            border-bottom: 3px solid #2563eb;
-            padding-bottom: 10px;
-            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 2px solid #09090b;
+            padding-bottom: 16px;
+            margin-bottom: 28px;
         }
-        .header h1 {
+        .header img { height: 56px; width: auto; }
+        .header .titles h1 {
             margin: 0;
-            color: #2563eb;
-            font-size: 20pt;
+            color: #09090b;
+            font-size: 18pt;
+            letter-spacing: -0.5px;
         }
+        .header .titles p { margin: 2px 0 0; color: #71717a; font-size: 9pt; }
         .meta-info {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            background: #f8fafc;
+            background: #fafafa;
+            border: 1px solid #e4e4e7;
             padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 30px;
+            border-radius: 10px;
+            margin-bottom: 28px;
         }
-        .meta-item {
-            margin-bottom: 5px;
-        }
+        .meta-item { margin-bottom: 4px; }
         .label {
             font-weight: bold;
-            color: #64748b;
+            color: #71717a;
             text-transform: uppercase;
             font-size: 8pt;
             display: block;
         }
-        .value {
-            font-size: 10pt;
-            font-weight: 600;
-        }
-        .section {
-            margin-bottom: 25px;
-            page-break-inside: avoid;
-        }
+        .value { font-size: 10pt; font-weight: 600; }
+        .section { margin-bottom: 24px; page-break-inside: avoid; }
         .section-title {
-            background: #e2e8f0;
+            background: #f4f4f5;
             padding: 8px 12px;
             font-size: 12pt;
             font-weight: bold;
-            color: #1e3a8a;
-            border-left: 5px solid #2563eb;
-            margin-bottom: 15px;
+            color: #09090b;
+            border-left: 4px solid #09090b;
+            border-radius: 4px;
+            margin-bottom: 14px;
         }
         .question-item {
-            margin-bottom: 15px;
-            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 14px;
+            border-bottom: 1px solid #f4f4f5;
             padding-bottom: 10px;
         }
-        .question-label {
-            font-weight: bold;
-            color: #334155;
-            display: block;
-            margin-bottom: 4px;
-        }
-        .answer-text {
-            color: #0f172a;
-            word-wrap: break-word;
-            white-space: pre-wrap;
-        }
+        .question-label { font-weight: bold; color: #3f3f46; display: block; margin-bottom: 4px; }
+        .answer-text { color: #18181b; word-wrap: break-word; white-space: pre-wrap; }
         .evidence-img {
             max-width: 100%;
             max-height: 400px;
             display: block;
             margin: 10px 0;
-            border-radius: 4px;
-            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            border: 1px solid #d4d4d8;
         }
         .footer-notes {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #e2e8f0;
+            margin-top: 36px;
+            padding-top: 18px;
+            border-top: 1px solid #e4e4e7;
             font-style: italic;
-            color: #64748b;
+            color: #71717a;
+            font-size: 9pt;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Reporte de Estudio Socioeconómico</h1>
-        <p>Folio Digital: #{{ application.id }}</p>
+        {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="Capdir Consultores">{% endif %}
+        <div class="titles">
+            <h1>Reporte de Estudio Socioeconómico</h1>
+            <p>Capdir Consultores · Folio Digital #{{ application.id }}</p>
+        </div>
     </div>
 
     <div class="meta-info">
@@ -134,7 +129,7 @@
                             <img src="{{ url }}" class="evidence-img">
                         {% endfor %}
                     {% else %}
-                        <span style="color: #94a3b8;">Sin imagen adjunta.</span>
+                        <span style="color: #a1a1aa;">Sin imagen adjunta.</span>
                     {% endif %}
                 {% else %}
                     {{ item.answer|default:"N/A" }}

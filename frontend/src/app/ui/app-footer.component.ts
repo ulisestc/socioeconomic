@@ -12,13 +12,13 @@ import { CapdirLogoComponent } from './capdir-logo.component';
   template: `
     <footer class="mt-16 border-t border-border bg-muted/40">
       <div class="mx-auto flex max-w-7xl flex-col items-center gap-4 px-6 py-10 text-center">
-        <capdir-logo></capdir-logo>
+        <capdir-logo [size]="64"></capdir-logo>
         <p class="max-w-md text-sm text-muted-foreground">
           Digitalizamos el proceso de estudios socioeconómicos: del papel al expediente,
           con seriedad y trazabilidad.
         </p>
         <p class="text-xs text-muted-foreground/80">
-          &copy; {{ year }} CAPDIR — Capacitación Directiva. Todos los derechos reservados.
+          &copy; {{ year }} Capdir Consultores. Todos los derechos reservados.
         </p>
       </div>
     </footer>

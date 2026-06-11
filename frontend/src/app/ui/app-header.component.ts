@@ -63,10 +63,9 @@ export class AppHeaderComponent implements OnInit {
     this.auth.user$.subscribe(u => this.user = u);
   }
 
-  get homeLink() {
-    if (!this.user) return '/login';
-    return this.user.role === 'CONSULTANT' ? '/consultant' : '/applicant';
-  }
+  // El logo siempre lleva al hero/landing (/login). Si hay sesión, esa página
+  // no muestra el formulario de login sino un acceso al panel.
+  get homeLink() { return '/login'; }
   get displayName() {
     if (!this.user) return '';
     const n = `${this.user.first_name ?? ''} ${this.user.last_name ?? ''}`.trim();
@@ -84,6 +83,7 @@ export class AppHeaderComponent implements OnInit {
 
   logout() {
     this.auth.logout();
-    this.router.navigate(['/login']);
+    // Redirección dura: resetea por completo el estado de la app y la sesión.
+    window.location.href = '/login';
   }
 }

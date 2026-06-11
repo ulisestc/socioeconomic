@@ -91,19 +91,42 @@ import { AccordionItemComponent } from '../ui/accordion-item.component';
                             [open]="i === 0">
               <div class="space-y-4">
                 <div *ngFor="let q of section.questions">
-                  <label class="ses-label">{{ q.label }}</label>
+                  <label class="ses-label">{{ q.label }}<span *ngIf="q.required" class="text-destructive"> *</span></label>
                   <ng-container [ngSwitch]="q.type">
                     <label *ngSwitchCase="'file'" class="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground hover:border-primary">
                       <lucide-icon [img]="ImageIcon" [size]="16"></lucide-icon>
-                      <span>{{ hasAttachment(q.key) ? 'Cambiar archivo' : 'Seleccionar imagen' }}</span>
+                      <span>{{ hasAttachment(q.key) ? 'Cambiar archivo' : 'Seleccionar archivo' }}</span>
                       <input type="file" (change)="onFileSelected($event, q.key)" accept="image/*" class="hidden">
                     </label>
                     <input *ngSwitchCase="'tel'" [(ngModel)]="responses[q.key]" [name]="q.key" type="tel"
                            class="ses-input" placeholder="10 dígitos" (input)="onPhoneInput($event, q.key)">
+                    <input *ngSwitchCase="'number'" [(ngModel)]="responses[q.key]" [name]="q.key" type="number" class="ses-input">
+                    <input *ngSwitchCase="'email'" [(ngModel)]="responses[q.key]" [name]="q.key" type="email" class="ses-input" placeholder="correo@ejemplo.com">
+                    <input *ngSwitchCase="'date'" [(ngModel)]="responses[q.key]" [name]="q.key" type="date" class="ses-input">
                     <textarea *ngSwitchCase="'textarea'" [(ngModel)]="responses[q.key]" [name]="q.key" class="ses-input min-h-24"></textarea>
+
+                    <div *ngSwitchCase="'radio'" class="space-y-2">
+                      <label *ngFor="let opt of q.options" class="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+                        <input type="radio" [name]="q.key" [value]="opt" [(ngModel)]="responses[q.key]" class="h-4 w-4 accent-[hsl(var(--primary))]">
+                        {{ opt }}
+                      </label>
+                    </div>
+
+                    <select *ngSwitchCase="'select'" [(ngModel)]="responses[q.key]" [name]="q.key" class="ses-input">
+                      <option value="">Selecciona una opción...</option>
+                      <option *ngFor="let opt of q.options" [value]="opt">{{ opt }}</option>
+                    </select>
+
+                    <div *ngSwitchCase="'checkbox'" class="space-y-2">
+                      <label *ngFor="let opt of q.options" class="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+                        <input type="checkbox" [checked]="isChecked(q.key, opt)" (change)="toggleCheckbox(q.key, opt, $event)" class="h-4 w-4 accent-[hsl(var(--primary))]">
+                        {{ opt }}
+                      </label>
+                    </div>
+
                     <input *ngSwitchDefault [(ngModel)]="responses[q.key]" [name]="q.key" class="ses-input">
                   </ng-container>
-                  <p *ngIf="hasAttachment(q.key)" class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[hsl(142_71%_30%)]">
+                  <p *ngIf="q.type === 'file' && hasAttachment(q.key)" class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[hsl(142_71%_30%)]">
                     <lucide-icon [img]="CheckIcon" [size]="14"></lucide-icon> Archivo cargado
                   </p>
                 </div>
@@ -213,12 +236,35 @@ export class ApplicantFormComponent implements OnInit {
   }
   iconFor(i: number) { return this.sectionIcons[i % this.sectionIcons.length]; }
 
+  isAnswered(q: any): boolean {
+    if (q.type === 'file') return this.hasAttachment(q.key);
+    if (q.type === 'checkbox') return Array.isArray(this.responses[q.key]) && this.responses[q.key].length > 0;
+    return !!(this.responses[q.key] !== undefined && this.responses[q.key] !== null && String(this.responses[q.key]).trim());
+  }
+
   sectionComplete(section: any): boolean {
     const qs = section.questions || [];
     if (qs.length === 0) return false;
-    return qs.every((q: any) =>
-      q.type === 'file' ? this.hasAttachment(q.key) : !!(this.responses[q.key] && String(this.responses[q.key]).trim())
-    );
+    const required = qs.filter((q: any) => q.required);
+    const toCheck = required.length ? required : qs;
+    return toCheck.every((q: any) => this.isAnswered(q));
+  }
+
+  private allQuestions(): any[] {
+    const out: any[] = [];
+    (this.selectedApplication?.form_template?.structure || []).forEach((s: any) => (s.questions || []).forEach((q: any) => out.push(q)));
+    return out;
+  }
+
+  // ---- casillas de verificación (respuesta = arreglo) ----
+  isChecked(key: string, opt: string): boolean {
+    return Array.isArray(this.responses[key]) && this.responses[key].includes(opt);
+  }
+  toggleCheckbox(key: string, opt: string, event: any) {
+    if (!Array.isArray(this.responses[key])) this.responses[key] = [];
+    const arr = this.responses[key] as string[];
+    if (event.target.checked) { if (!arr.includes(opt)) arr.push(opt); }
+    else { this.responses[key] = arr.filter(o => o !== opt); }
   }
 
   selectApp(app: any) {
@@ -260,6 +306,17 @@ export class ApplicantFormComponent implements OnInit {
 
   submitForm(e: Event, isDraft = false) {
     e.preventDefault();
+    this.errorMsg = '';
+
+    // Validar obligatorias solo al enviar definitivo (el borrador no exige)
+    if (!isDraft) {
+      const missing = this.allQuestions().filter(q => q.required && !this.isAnswered(q));
+      if (missing.length) {
+        this.errorMsg = 'Faltan campos obligatorios: ' + missing.map(q => q.label).join(', ');
+        return;
+      }
+    }
+
     this.isSubmitting = true;
     const formattedResponses = Object.keys(this.responses).map(key => ({ key, value: this.responses[key] }));
 

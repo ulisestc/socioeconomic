@@ -18,5 +18,5 @@ import { AppFooterComponent } from './ui/app-footer.component';
   `
 })
 export class App {
-  title = 'socioeconomic-frontend';
+  title = 'CAPDIR';
 }
