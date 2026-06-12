@@ -40,8 +40,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Application.objects.filter(applicant=user)
 
     def _send_styled_email(self, subject, to_email, context):
-        # Logo servido por el frontend (los clientes de correo lo cargan vía URL pública)
-        context.setdefault('logo_url', f'{settings.FRONTEND_URL}/logo.png')
+        # Logo sin fondo embebido como data URI (no depende de que el frontend esté arriba)
+        context.setdefault('logo_url', self._logo_data_uri('logo_no_bg.png'))
         html_message = render_to_string('email_template.html', context)
         send_mail(
             subject,
@@ -52,10 +52,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             fail_silently=False,
         )
 
-    def _logo_data_uri(self):
-        """Logo embebido como data URI para que WeasyPrint lo incruste sin depender de la red."""
+    def _logo_data_uri(self, filename='logo.png'):
+        """Logo embebido como data URI (para correos y para que WeasyPrint lo incruste sin red)."""
         import base64
-        path = os.path.join(settings.BASE_DIR, 'templates', 'logo.png')
+        path = os.path.join(settings.BASE_DIR, 'templates', filename)
         try:
             with open(path, 'rb') as f:
                 encoded = base64.b64encode(f.read()).decode('ascii')
